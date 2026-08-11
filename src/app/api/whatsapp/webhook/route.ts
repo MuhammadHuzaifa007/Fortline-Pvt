@@ -194,34 +194,63 @@ export async function POST(request: Request) {
   // n8n is now the single AI brain (Option A). The CRM only stores messages
   // and forwards inbound WhatsApp events to n8n.
   after(async () => {
+    // ------------------------------------------------------------
+    // Leg 1: best-effort forward to n8n.
+    //
+    // This is intentionally isolated in its own try/catch and never
+    // allowed to prevent core processing below. Previously this fetch
+    // and `processWebhook(body)` shared one try/catch, so if n8n was
+    // down, slow, or DNS-failed, the fetch threw, execution jumped to
+    // the catch, and `processWebhook` never ran — silently dropping
+    // the inbound message from the CRM (no contact/conversation/
+    // message row, no automations, no webhook fan-out) even though
+    // Meta had already been told 200 OK.
+    // ------------------------------------------------------------
     try {
-      const hasIncomingMessage = body.entry?.some((entry) =>
-        entry.changes?.some(
-          (change) =>
-            Array.isArray(change.value?.messages) &&
-            change.value.messages.length > 0
-        )
-      )
+      const hasIncomingMessage =
+        body.entry?.some((entry) =>
+          entry.changes?.some(
+            (change) =>
+              Array.isArray(change.value?.messages) &&
+              change.value.messages.length > 0
+          )
+        ) ?? false
 
       if (hasIncomingMessage && process.env.N8N_CRM_WEBHOOK_URL) {
+        // Bound the n8n call so a slow/hanging endpoint can't eat into
+        // this route's maxDuration budget. 15s leaves headroom under
+        // the 60s ceiling even with several inbound messages fanning
+        // out to media downloads afterward.
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15_000)
+
         try {
-          await fetch(process.env.N8N_CRM_WEBHOOK_URL, {
+          const n8nResponse = await fetch(process.env.N8N_CRM_WEBHOOK_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-itechskill-crm-secret':
-                process.env.N8N_CRM_WEBHOOK_SECRET || '',
+              'x-itechskill-crm-secret': process.env.N8N_CRM_WEBHOOK_SECRET || '',
             },
             body: JSON.stringify(body),
+            signal: controller.signal,
           })
-        } catch (error) {
-          console.error('Failed forwarding WhatsApp event to n8n:', error)
+          console.log('[n8n] forwarded webhook, status:', n8nResponse.status)
+        } finally {
+          clearTimeout(timeout)
         }
       }
+    } catch (error) {
+      console.error('[n8n] forward failed (non-fatal):', error)
+    }
 
+    // ------------------------------------------------------------
+    // Leg 2: core CRM processing. Always runs, regardless of
+    // whether the n8n forward above succeeded, failed, or timed out.
+    // ------------------------------------------------------------
+    try {
       await processWebhook(body)
     } catch (error) {
-      console.error('Error processing webhook:', error)
+      console.error('Webhook processing error:', error)
     }
   })
 
