@@ -8,7 +8,6 @@ import { reopenClosedConversation } from '@/lib/conversations/reopen'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
-import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import {
   handleTemplateWebhookChange,
@@ -191,22 +190,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Process AFTER the response so we ack Meta within their ~20s timeout
-  // (a slow ack triggers Meta retries + duplicate inserts), while still
-  // guaranteeing the work runs to completion.
-  //
-  // This MUST use `after()` rather than a detached `processWebhook(body)`
-  // promise: on serverless platforms (we run on Vercel) the function can
-  // be frozen or terminated the moment the response is sent, so a floating
-  // promise's DB writes are not guaranteed to finish. That dropped a
-  // non-deterministic *subset* of inbound messages — contacts/conversations
-  // were created but the message insert never landed, leaving conversations
-  // that show in the inbox with an empty thread, and no logs to explain it
-  // (see issue #301). `after()` hands the callback to the runtime, which
-  // keeps the function alive until it resolves (within the route's
-  // maxDuration).
+  // Process AFTER the response so we ack Meta within their ~20s timeout.
+  // n8n is now the single AI brain (Option A). The CRM only stores messages
+  // and forwards inbound WhatsApp events to n8n.
   after(async () => {
     try {
+      const hasIncomingMessage = body.entry?.some((entry) =>
+        entry.changes?.some(
+          (change) =>
+            Array.isArray(change.value?.messages) &&
+            change.value.messages.length > 0
+        )
+      )
+
+      if (hasIncomingMessage && process.env.N8N_CRM_WEBHOOK_URL) {
+        try {
+          await fetch(process.env.N8N_CRM_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-itechskill-crm-secret':
+                process.env.N8N_CRM_WEBHOOK_SECRET || '',
+            },
+            body: JSON.stringify(body),
+          })
+        } catch (error) {
+          console.error('Failed forwarding WhatsApp event to n8n:', error)
+        }
+      }
+
       await processWebhook(body)
     } catch (error) {
       console.error('Error processing webhook:', error)
@@ -741,16 +753,16 @@ async function processMessage(
     message:
       interactiveReplyId
         ? {
-            kind: 'interactive_reply',
-            reply_id: interactiveReplyId,
-            reply_title: contentText ?? '',
-            meta_message_id: message.id,
-          }
+          kind: 'interactive_reply',
+          reply_id: interactiveReplyId,
+          reply_title: contentText ?? '',
+          meta_message_id: message.id,
+        }
         : {
-            kind: 'text',
-            text: contentText ?? message.text?.body ?? '',
-            meta_message_id: message.id,
-          },
+          kind: 'text',
+          text: contentText ?? message.text?.body ?? '',
+          meta_message_id: message.id,
+        },
     isFirstInboundMessage,
   })
   const flowConsumed = flowResult.consumed
@@ -811,19 +823,10 @@ async function processMessage(
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }
 
-  // AI auto-reply. Runs only for plain-text inbound the deterministic
-  // flow runner did NOT consume (flows win over the LLM), and only when
-  // the account has enabled it. Awaited inside `after()` (same reason as
-  // the webhook dispatch below); `dispatchInboundToAiReply` owns its
-  // eligibility gates + try/catch and never throws.
-  if (!flowConsumed && !interactiveReplyId && inboundText.trim()) {
-    await dispatchInboundToAiReply({
-      accountId,
-      conversationId: conversation.id,
-      contactId: contactRecord.id,
-      configOwnerUserId,
-    })
-  }
+  // AI replies are handled by n8n.
+  // The CRM only manages inbox storage, contacts, conversations,
+  // and webhook delivery. This prevents duplicate replies from
+  // both the CRM AI and the n8n AI agent.
 
   // message.received webhook (public API). Awaited — not fire-and-forget
   // — because we're inside the route's `after()` block, which only keeps
