@@ -16,6 +16,13 @@ function supabaseAdmin() {
   return _adminClient
 }
 
+interface WhatsAppConfigRow {
+  id: string
+  account_id: string
+  user_id: string
+  phone_number_id: string
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -51,26 +58,43 @@ export async function POST(request: Request) {
     // 1. Resolve the correct CRM account from WhatsApp phone number ID
     // ------------------------------------------------------------
 
-    const { data: configRows, error: configError } =
+    const { data: allConfigs, error: allConfigsError } =
       await supabaseAdmin()
         .from('whatsapp_config')
-        .select('account_id, user_id')
-        .eq('phone_number_id', phoneNumberId)
+        .select('id, account_id, user_id, phone_number_id')
 
-    if (configError) {
-      console.error('[ai-reply] config lookup failed:', configError)
+    console.log('[ai-reply] DATABASE DEBUG', {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      receivedPhoneNumberId: phoneNumberId,
+      allConfigs,
+      allConfigsError,
+    })
 
+    if (allConfigsError) {
       return NextResponse.json(
-        { error: 'WhatsApp configuration lookup failed' },
+        {
+          error: 'WhatsApp configuration lookup failed',
+          details: allConfigsError.message,
+        },
         { status: 500 }
       )
     }
 
-    if (!configRows || configRows.length === 0) {
+    const configRows = ((allConfigs as WhatsAppConfigRow[]) || []).filter(
+      (row: WhatsAppConfigRow) =>
+        String(row.phone_number_id).trim() === String(phoneNumberId).trim()
+    )
+
+    if (configRows.length === 0) {
       return NextResponse.json(
         {
           error: 'WhatsApp configuration not found',
-          phone_number_id: phoneNumberId,
+          received_phone_number_id: phoneNumberId,
+          database_phone_number_ids: ((allConfigs as WhatsAppConfigRow[]) || []).map(
+            (row: WhatsAppConfigRow) => String(row.phone_number_id)
+          ),
+          supabase_project:
+            process.env.NEXT_PUBLIC_SUPABASE_URL || 'NOT SET',
         },
         { status: 404 }
       )
