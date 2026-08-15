@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { mapAuthError } from "@/lib/auth/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,11 +15,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageCircle, CheckCircle, ArrowLeft } from "lucide-react";
+import { MessageCircle, CheckCircle, ArrowLeft, AlertCircle } from "lucide-react";
 
 export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordPageInner />
+    </Suspense>
+  );
+}
+
+function ForgotPasswordPageInner() {
+  const searchParams = useSearchParams();
+  const queryError = searchParams.get("error");
+
   const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    queryError === "expired"
+      ? "This password-reset link is invalid or has expired. Please request a new link."
+      : null
+  );
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const supabase = createClient();
@@ -27,12 +44,14 @@ export default function ForgotPasswordPage() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const cleanEmail = email.trim();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     });
 
     if (error) {
-      setError(error.message);
+      setError(mapAuthError(error));
       setLoading(false);
       return;
     }
@@ -53,9 +72,7 @@ export default function ForgotPasswordPage() {
               Check your email
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              We&apos;ve sent a password reset link to{" "}
-              <span className="text-foreground">{email}</span>. Please check your
-              inbox.
+              If an account exists for <span className="text-foreground">{email}</span>, a password reset link has been sent. Please check your inbox.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -88,8 +105,9 @@ export default function ForgotPasswordPage() {
         <CardContent>
           <form onSubmit={handleReset} className="flex flex-col gap-4">
             {error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {error}
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -113,7 +131,7 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Sending..." : "Send reset link"}
+              {loading ? "Sending reset link..." : "Send reset link"}
             </Button>
           </form>
 

@@ -86,6 +86,33 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     expect(res.cookies.get(ROTATED.name)?.value).toBe("cleared");
   });
 
+  it("redirects unauthenticated user accessing protected modules (/flows, /notifications, /ai-agents)", async () => {
+    mockUser = null;
+
+    const routes = ["/flows", "/notifications", "/ai-agents", "/contacts", "/settings"];
+    for (const route of routes) {
+      const res = await middleware(
+        new NextRequest(`https://app.test${route}`)
+      );
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toContain("/login");
+    }
+  });
+
+  it("permits unauthenticated visitors to access /reset-password and /auth/callback", async () => {
+    mockUser = null;
+
+    const resReset = await middleware(
+      new NextRequest("https://app.test/reset-password")
+    );
+    expect(resReset.headers.get("location")).toBeNull();
+
+    const resCallback = await middleware(
+      new NextRequest("https://app.test/auth/callback?code=test-code")
+    );
+    expect(resCallback.headers.get("location")).toBeNull();
+  });
+
   it("redirects a signed-in user with an invite token to /join/<token>", async () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
