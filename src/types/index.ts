@@ -215,7 +215,9 @@ export type ContentType =
   | 'location'
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
-  | 'interactive';
+  | 'interactive'
+  /** Voice / phone / WhatsApp call entry logged to timeline. */
+  | 'call';
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface Message {
@@ -654,3 +656,65 @@ export interface QuickReply {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// Calls & Call History (migration 037)
+// ============================================================
+
+export type CallDirection = 'outgoing' | 'incoming' | 'missed';
+export type CallMethod = 'phone' | 'whatsapp' | 'other';
+export type CallOutcome =
+  | 'answered'
+  | 'no_answer'
+  | 'busy'
+  | 'callback_scheduled'
+  | 'not_reachable'
+  | 'wrong_number';
+
+export interface Call {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  conversation_id?: string | null;
+  agent_id: string;
+  direction: CallDirection;
+  call_method: CallMethod;
+  duration_seconds: number;
+  outcome: CallOutcome;
+  notes?: string | null;
+  call_started_at: string;
+  follow_up_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CallWithAgent extends Call {
+  agent: {
+    id: string;
+    full_name: string;
+  } | null;
+}
+
+export interface CallSummary {
+  total_calls: number;
+  answered: number;
+  missed_or_unanswered: number;
+  total_talk_seconds: number;
+  last_call_at: string | null;
+  last_agent_name?: string | null;
+}
+
+export interface AgentCallStats {
+  user_id: string;
+  agent_name: string;
+  account_role: string;
+  presence: 'online' | 'away' | 'offline';
+  total_calls: number;
+  answered_calls: number;
+  unanswered_calls: number;
+  total_talk_seconds: number;
+  avg_call_seconds: number;
+  last_call_at: string | null;
+  calls_last_24h: number;
+}
+

@@ -4,9 +4,11 @@ import {
   type AccountRole,
   canDeleteAccount,
   canEditSettings,
+  canLogCalls,
   canManageMembers,
   canSendMessages,
   canTransferOwnership,
+  canViewCallStats,
   canViewOnly,
   hasMinRole,
   isAccountRole,
@@ -127,4 +129,19 @@ describe("capability predicates", () => {
     expect(canTransferOwnership("agent")).toBe(false);
     expect(canTransferOwnership("viewer")).toBe(false);
   });
+
+  it("canLogCalls: agent+ only", () => {
+    expect(canLogCalls("owner")).toBe(true);
+    expect(canLogCalls("admin")).toBe(true);
+    expect(canLogCalls("agent")).toBe(true);
+    expect(canLogCalls("viewer")).toBe(false);
+  });
+
+  it("canViewCallStats: admin+ only", () => {
+    expect(canViewCallStats("owner")).toBe(true);
+    expect(canViewCallStats("admin")).toBe(true);
+    expect(canViewCallStats("agent")).toBe(false);
+    expect(canViewCallStats("viewer")).toBe(false);
+  });
 });
+

@@ -107,3 +107,14 @@ export function canDeleteAccount(role: AccountRole): boolean {
 export function canTransferOwnership(role: AccountRole): boolean {
   return role === "owner";
 }
+
+/** Owner / admin / agent: log calls. */
+export function canLogCalls(role: AccountRole): boolean {
+  return hasMinRole(role, "agent");
+}
+
+/** Owner / admin only: view team call monitoring stats. */
+export function canViewCallStats(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+

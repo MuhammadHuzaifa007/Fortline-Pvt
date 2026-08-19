@@ -1715,5 +1715,74 @@
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
       "loading": "Loading…"
     }
+  },
+  "Calls": {
+    "logCall": "Log call",
+    "logCallTitle": "Log a call",
+    "direction": "Direction",
+    "method": "Call method",
+    "duration": "Duration (mm:ss)",
+    "durationPlaceholder": "0:00",
+    "outcome": "Outcome",
+    "notes": "Notes",
+    "notesPlaceholder": "What was discussed?",
+    "followUp": "Follow-up date & time",
+    "saveCall": "Save call",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "quickPresets": "Quick presets",
+    "directions": {
+      "outgoing": "Outgoing",
+      "incoming": "Incoming",
+      "missed": "Missed"
+    },
+    "methods": {
+      "phone": "Phone call",
+      "whatsapp": "WhatsApp call",
+      "other": "Other"
+    },
+    "outcomes": {
+      "answered": "Answered",
+      "no_answer": "No answer",
+      "busy": "Busy",
+      "callback_scheduled": "Callback scheduled",
+      "not_reachable": "Not reachable",
+      "wrong_number": "Wrong number"
+    },
+    "contactPanel": {
+      "title": "Calls",
+      "callsSummary": "{total} {total, plural, =1 {call} other {calls}} — {answered} answered, {missed} missed",
+      "talkTime": "Total talk time: {time}",
+      "lastCall": "Last call: {time} by {agent}",
+      "noCalls": "No calls yet",
+      "loading": "Loading calls..."
+    },
+    "timeline": {
+      "call": "Call"
+    },
+    "teamMonitoring": {
+      "title": "Team Calls",
+      "description": "Per-agent call metrics and monitoring for your team.",
+      "agent": "Agent",
+      "role": "Role",
+      "totalCalls": "Total calls",
+      "answered": "Answered",
+      "missedUnanswered": "Missed / Unanswered",
+      "avgDuration": "Avg duration",
+      "totalTalkTime": "Total talk time",
+      "calls24h": "Calls (24h)",
+      "lastCall": "Last call",
+      "noCalls": "No calls logged yet",
+      "refresh": "Refresh team calls",
+      "presenceOnline": "Online",
+      "presenceAway": "Away",
+      "presenceOffline": "Offline"
+    },
+    "toasts": {
+      "callLogged": "Call logged successfully",
+      "callLogFailed": "Failed to log call",
+      "loadFailed": "Failed to load call data"
+    }
   }
 }
+

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Deal, ContactNote, Tag, CallWithAgent, CallSummary } from "@/types";
 import {
   Phone,
   Mail,
@@ -15,25 +15,48 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  PhoneCall,
+  PhoneOutgoing,
+  PhoneIncoming,
+  PhoneMissed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 
 interface ContactSidebarProps {
   contact: Contact | null;
 }
 
+function formatTalkTime(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return "0s";
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+
+  const parts: string[] = [];
+  if (hrs > 0) parts.push(`${hrs}h`);
+  if (mins > 0) parts.push(`${mins}m`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+
+  return parts.join(" ");
+}
+
 export function ContactSidebar({ contact }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
+  const tCalls = useTranslations("Calls");
 
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
+  const [callsData, setCallsData] = useState<{
+    calls: CallWithAgent[];
+    summary: CallSummary;
+  } | null>(null);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
 
@@ -71,6 +94,16 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         }));
       setTags(mapped);
     }
+
+    // Fetch calls lazily without blocking inbox
+    fetch(`/api/calls?contact_id=${contact.id}&limit=3`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setCallsData(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load calls for contact sidebar:", err);
+      });
   }, [contact]);
 
   // Load on contact change. setContactData/setTags run inside async
@@ -203,6 +236,86 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     {tag.name}
                   </span>
                 ))
+              )}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Calls Section */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <PhoneCall className="h-3 w-3" />
+              {tCalls("contactPanel.title")}
+            </div>
+
+            <div className="mt-2 space-y-2">
+              {!callsData || callsData.summary.total_calls === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">
+                  {tCalls("contactPanel.noCalls")}
+                </p>
+              ) : (
+                <>
+                  {/* Summary 3 lines */}
+                  <div className="space-y-1 rounded-lg bg-muted/70 px-3 py-2 text-xs">
+                    <p className="font-medium text-foreground">
+                      📞 {callsData.summary.total_calls} calls — {callsData.summary.answered} answered, {callsData.summary.missed_or_unanswered} missed
+                    </p>
+                    <p className="text-muted-foreground">
+                      Total talk time: {formatTalkTime(callsData.summary.total_talk_seconds)}
+                    </p>
+                    {callsData.summary.last_call_at && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Last call: {formatDistanceToNow(new Date(callsData.summary.last_call_at), { addSuffix: true })} by {callsData.calls[0]?.agent?.full_name || "Agent"}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Last 3 calls rows */}
+                  <div className="space-y-1 pt-1">
+                    {callsData.calls.map((call) => {
+                      const Icon =
+                        call.direction === "missed"
+                          ? PhoneMissed
+                          : call.direction === "incoming"
+                          ? PhoneIncoming
+                          : PhoneOutgoing;
+
+                      const iconColor =
+                        call.direction === "missed"
+                          ? "text-rose-500"
+                          : call.direction === "incoming"
+                          ? "text-blue-500"
+                          : "text-emerald-500";
+
+                      return (
+                        <div
+                          key={call.id}
+                          className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Icon className={cn("h-3 w-3 shrink-0", iconColor)} />
+                            <span className="capitalize text-foreground font-medium">
+                              {tCalls(`directions.${call.direction}`)}
+                            </span>
+                            <span>•</span>
+                            <span>{formatTalkTime(call.duration_seconds)}</span>
+                            <span>•</span>
+                            <span className="truncate">
+                              {tCalls(`outcomes.${call.outcome}`)}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-[10px]">
+                            {formatDistanceToNow(new Date(call.call_started_at), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </div>

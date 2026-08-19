@@ -183,6 +183,13 @@ function MessageContent({
       );
     }
 
+    case "call":
+      return (
+        <p className="whitespace-pre-wrap break-words text-sm">
+          {message.content_text}
+        </p>
+      );
+
     default:
       return (
         <p className="whitespace-pre-wrap break-words text-sm">

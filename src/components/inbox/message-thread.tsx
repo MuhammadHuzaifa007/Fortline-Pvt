@@ -27,9 +27,11 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Phone,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
+import { useCan } from "@/hooks/use-can";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -52,6 +54,8 @@ import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
 import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
+import { CallMessageChip } from "./call-message-chip";
+import { LogCallDialog } from "./log-call-dialog";
 import { toast } from "sonner";
 
 interface ReplyDraft {
@@ -173,12 +177,15 @@ export function MessageThread({
   const t = useTranslations("Inbox.messageThread");
   const tTimer = useTranslations("Inbox.sessionTimer");
   const tQuote = useTranslations("Inbox.replyQuote");
+  const tCalls = useTranslations("Calls");
 
   const { user } = useAuth();
+  const canLogCall = useCan("log-calls");
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [logCallOpen, setLogCallOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -996,6 +1003,19 @@ export function MessageThread({
             </button>
           )}
 
+          {/* Log call button — owner / admin / agent only */}
+          {canLogCall && (
+            <button
+              type="button"
+              onClick={() => setLogCallOpen(true)}
+              aria-label={tCalls("logCall")}
+              title={tCalls("logCall")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Phone className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           {/* Status dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(
@@ -1138,6 +1158,10 @@ export function MessageThread({
                       const next = own?.emoji === emoji ? "" : emoji;
                       void postReaction(msg.id, next);
                     };
+                    if (msg.content_type === "call") {
+                      return <CallMessageChip key={msg.id} message={msg} />;
+                    }
+
                     return (
                       <MessageActions
                         key={msg.id}
@@ -1197,6 +1221,14 @@ export function MessageThread({
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
+      />
+
+      <LogCallDialog
+        open={logCallOpen}
+        onOpenChange={setLogCallOpen}
+        contactId={contact.id}
+        conversationId={conversation.id}
+        onCallLogged={onRefresh}
       />
 
       {/* Full-size viewer for the thread's images/videos. Renders nothing

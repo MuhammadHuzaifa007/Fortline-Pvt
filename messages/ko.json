@@ -1715,5 +1715,74 @@
       "reindexTooltip": "모든 문서를 다시 임베딩합니다 (예: 임베딩 키 추가 후)",
       "loading": "불러오는 중…"
     }
+  },
+  "Calls": {
+    "logCall": "통화 기록",
+    "logCallTitle": "통화 기록하기",
+    "direction": "통화 방향",
+    "method": "통화 방법",
+    "duration": "통화 시간 (분:초)",
+    "durationPlaceholder": "0:00",
+    "outcome": "통화 결과",
+    "notes": "메모",
+    "notesPlaceholder": "어떤 내용을 논의했나요?",
+    "followUp": "후속 일정",
+    "saveCall": "통화 저장",
+    "saving": "저장 중...",
+    "cancel": "취소",
+    "quickPresets": "빠른 선택",
+    "directions": {
+      "outgoing": "발신",
+      "incoming": "수신",
+      "missed": "부재중"
+    },
+    "methods": {
+      "phone": "일반 전화",
+      "whatsapp": "WhatsApp 통화",
+      "other": "기타"
+    },
+    "outcomes": {
+      "answered": "응답함",
+      "no_answer": "응답 없음",
+      "busy": "통화 중",
+      "callback_scheduled": "재통화 예약",
+      "not_reachable": "연결 불가",
+      "wrong_number": "잘못된 번호"
+    },
+    "contactPanel": {
+      "title": "통화 기록",
+      "callsSummary": "총 {total}건 — 응답 {answered}건, 부재중 {missed}건",
+      "talkTime": "총 통화 시간: {time}",
+      "lastCall": "최근 통화: {time} ({agent})",
+      "noCalls": "기록된 통화가 없습니다",
+      "loading": "통화 기록 로딩 중..."
+    },
+    "timeline": {
+      "call": "통화"
+    },
+    "teamMonitoring": {
+      "title": "팀 통화 현황",
+      "description": "팀원의 상담 통화 실적 및 모니터링 현황입니다.",
+      "agent": "상담원",
+      "role": "역할",
+      "totalCalls": "총 통화",
+      "answered": "응답",
+      "missedUnanswered": "부재중 / 미응답",
+      "avgDuration": "평균 시간",
+      "totalTalkTime": "총 통화 시간",
+      "calls24h": "최근 24시간",
+      "lastCall": "최근 통화",
+      "noCalls": "기록된 통화가 없습니다",
+      "refresh": "통화 현황 새로고침",
+      "presenceOnline": "온라인",
+      "presenceAway": "자리 비움",
+      "presenceOffline": "오프라인"
+    },
+    "toasts": {
+      "callLogged": "통화가 기록되었습니다",
+      "callLogFailed": "통화 기록에 실패했습니다",
+      "loadFailed": "통화 데이터를 불러오지 못했습니다"
+    }
   }
 }
+
