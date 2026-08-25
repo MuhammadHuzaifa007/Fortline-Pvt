@@ -15,13 +15,19 @@ export function AiAgentToggle({ className }: { className?: string }) {
   // Fetch status on mount and periodically poll (every 20s)
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/whatsapp/ai-agent", { cache: "no-store" });
+      const res = await fetch("/api/whatsapp/ai-agent", { 
+        cache: "no-store",
+        credentials: "same-origin"
+      });
       if (res.ok) {
         const data = await res.json();
         if (typeof data.enabled === "boolean") {
           setEnabled(data.enabled);
           setInitialLoaded(true);
         }
+      } else if (res.status === 401) {
+        // Session expired, stop polling or reload to force login
+        window.location.reload();
       }
     } catch {
       // Non-fatal background fetch error
@@ -44,6 +50,7 @@ export function AiAgentToggle({ className }: { className?: string }) {
         const res = await fetch("/api/whatsapp/ai-agent", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
           body: JSON.stringify({ enabled: nextState }),
         });
 
