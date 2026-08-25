@@ -33,6 +33,7 @@ export function CameraModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [errorType, setErrorType] = useState<"denied" | "inuse" | "notfound" | "other" | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -50,9 +51,11 @@ export function CameraModal({
   const startStream = useCallback(async () => {
     stopStream();
     setErrorType(null);
+    setErrorDetails(null);
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setErrorType("notfound");
+      setErrorDetails("navigator.mediaDevices.getUserMedia is undefined or not supported in this context (requires HTTPS/localhost).");
       toast.error(t("notFound"));
       return;
     }
@@ -83,6 +86,10 @@ export function CameraModal({
       }
     } catch (err: unknown) {
       console.error("[CameraModal] getUserMedia error:", err);
+      
+      const errorMessage = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      setErrorDetails(errorMessage);
+
       if (err instanceof Error) {
         if (
           err.name === "NotAllowedError" ||
@@ -276,6 +283,12 @@ export function CameraModal({
                       ? t("notFound")
                       : t("error")}
                   </p>
+                  {errorDetails && (
+                    <div className="bg-white/10 text-red-200 text-xs px-4 py-2 rounded-md max-w-sm overflow-hidden break-words text-left">
+                      <strong>Diagnostics:</strong><br />
+                      {errorDetails}
+                    </div>
+                  )}
                   <div className="flex flex-col sm:flex-row gap-2 justify-center">
                     <Button
                       variant="default"
