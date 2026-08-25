@@ -72,7 +72,6 @@ export function CameraModal({
           audio: false,
         });
       } catch (constraintErr) {
-        console.warn("[CameraModal] Ideal constraint failed, retrying with simple video: true", constraintErr);
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
@@ -85,7 +84,6 @@ export function CameraModal({
         await videoRef.current.play().catch(() => {});
       }
     } catch (err: unknown) {
-      console.error("[CameraModal] getUserMedia error:", err);
       
       const errorMessage = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
       setErrorDetails(errorMessage);

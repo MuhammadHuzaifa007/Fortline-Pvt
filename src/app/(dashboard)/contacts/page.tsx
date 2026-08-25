@@ -529,7 +529,8 @@ export default function ContactsPage() {
 
       {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="w-10">
@@ -691,6 +692,7 @@ export default function ContactsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Pagination */}
