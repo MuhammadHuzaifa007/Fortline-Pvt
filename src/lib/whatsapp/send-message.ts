@@ -238,6 +238,14 @@ export async function sendMessageToConversation(
     );
   }
 
+  if (contact?.is_spam) {
+    throw new SendMessageError(
+      'blocked',
+      'Cannot send messages to a blocked/spam contact',
+      400
+    );
+  }
+
   const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
   if (!isValidE164(sanitizedPhone)) {
     throw new SendMessageError(

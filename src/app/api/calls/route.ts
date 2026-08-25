@@ -12,6 +12,7 @@ const VALID_OUTCOMES: readonly CallOutcome[] = [
   "callback_scheduled",
   "not_reachable",
   "wrong_number",
+  "spam",
 ];
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -144,6 +145,7 @@ export async function POST(request: Request) {
     conversation_id,
     direction = "outgoing",
     call_method = "phone",
+    custom_platform,
     duration_seconds = 0,
     outcome = "answered",
     notes,
@@ -196,6 +198,14 @@ export async function POST(request: Request) {
       { error: `Invalid outcome. Must be one of: ${VALID_OUTCOMES.join(", ")}` },
       { status: 400 },
     );
+  }
+
+  // Validate custom_platform
+  let sanitizedCustomPlatform: string | null = null;
+  if (call_method === "other") {
+    if (typeof custom_platform === "string" && custom_platform.trim()) {
+      sanitizedCustomPlatform = custom_platform.trim().slice(0, 100);
+    }
   }
 
   // Validate duration_seconds
@@ -273,6 +283,7 @@ export async function POST(request: Request) {
       agent_id: ctx.userId,
       direction,
       call_method,
+      custom_platform: sanitizedCustomPlatform,
       duration_seconds: duration,
       outcome,
       notes: sanitizedNotes,
@@ -285,6 +296,17 @@ export async function POST(request: Request) {
   if (insertErr) {
     console.error("[POST /api/calls] insert error:", insertErr);
     return NextResponse.json({ error: insertErr.message }, { status: 500 });
+  }
+
+  // If outcome is spam, mark the contact as spam
+  if (outcome === "spam") {
+    const { error: blockErr } = await supabaseAdmin()
+      .from("contacts")
+      .update({ is_spam: true })
+      .eq("id", contact_id);
+    if (blockErr) {
+      console.error("[POST /api/calls] failed to flag contact as spam:", blockErr);
+    }
   }
 
   return NextResponse.json({ call }, { status: 201 });

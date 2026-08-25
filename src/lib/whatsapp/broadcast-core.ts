@@ -29,6 +29,7 @@ import {
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import type { MessageTemplate } from '@/types';
 import { findOrCreateContact } from '@/lib/api/v1/contacts';
+import { findExistingContact } from '@/lib/contacts/dedupe';
 
 /** Thrown by createBroadcast on a caller-visible failure; route maps it. */
 export class BroadcastError extends Error {
@@ -150,6 +151,11 @@ export async function createBroadcast(
   for (const r of recipients) {
     const sanitized = sanitizePhoneForMeta(typeof r.to === 'string' ? r.to : '');
     if (!isValidE164(sanitized)) {
+      rejected++;
+      continue;
+    }
+    const existing = await findExistingContact(db, accountId, sanitized);
+    if (existing && existing.is_spam) {
       rejected++;
       continue;
     }

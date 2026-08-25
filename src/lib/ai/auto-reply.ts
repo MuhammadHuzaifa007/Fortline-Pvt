@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './admin-client'
+import { getGlobalAiAgentSettings } from './global-switch'
 import { loadAiConfig } from './config'
 import { buildConversationContext } from './context'
 import { retrieveKnowledge } from './knowledge'
@@ -29,6 +30,7 @@ interface DispatchArgs {
  * or slow LLM call must not affect the webhook's 200 to Meta.
  *
  * Eligibility gates (any → silent no-op):
+ *   - Global AI Agent switch is OFF
  *   - AI off / auto-reply disabled for the account
  *   - a human agent is assigned (they own the thread)
  *   - auto-reply was disabled for this conversation (prior handoff)
@@ -46,6 +48,10 @@ export async function dispatchInboundToAiReply(
 
   try {
     const db = supabaseAdmin()
+
+    // 0. Global AI master switch
+    const globalSettings = await getGlobalAiAgentSettings(db)
+    if (!globalSettings.enabled) return
 
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.autoReplyEnabled) return

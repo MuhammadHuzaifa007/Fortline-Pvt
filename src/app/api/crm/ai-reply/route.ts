@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact } from '@/lib/contacts/dedupe'
+import { getGlobalAiAgentSettings } from '@/lib/ai/global-switch'
 
 let _adminClient: any = null
 
@@ -25,6 +26,18 @@ interface WhatsAppConfigRow {
 
 export async function POST(request: Request) {
   try {
+    // 0. Check global AI Agent master switch
+    const globalSettings = await getGlobalAiAgentSettings()
+    if (!globalSettings.enabled) {
+      return NextResponse.json(
+        {
+          error: 'AI Agent is currently paused globally',
+          enabled: false,
+        },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
 
     const phone = String(body.phone || '').trim()

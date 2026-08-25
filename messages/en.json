@@ -204,6 +204,17 @@
       "quickReplySaved": "Saved as a quick reply.",
       "quickReplySaveError": "Couldn't save the quick reply."
     },
+    "camera": {
+      "takePhoto": "Take photo",
+      "retake": "Retake",
+      "flipCamera": "Flip camera",
+      "permissionDenied": "Camera access blocked. Allow it in site settings.",
+      "notFound": "No camera found.",
+      "error": "Couldn't start the camera.",
+      "galleryFallback": "Choose from gallery instead",
+      "send": "Send",
+      "captionPlaceholder": "Add a caption…"
+    },
     "bubble": {
       "photo": "Photo",
       "video": "Video",
@@ -1741,13 +1752,16 @@
       "whatsapp": "WhatsApp call",
       "other": "Other"
     },
+    "customPlatform": "Platform name",
+    "customPlatformPlaceholder": "e.g., Instagram, Messenger, Snapchat",
     "outcomes": {
       "answered": "Answered",
       "no_answer": "No answer",
       "busy": "Busy",
       "callback_scheduled": "Callback scheduled",
       "not_reachable": "Not reachable",
-      "wrong_number": "Wrong number"
+      "wrong_number": "Wrong number",
+      "spam": "Spam"
     },
     "contactPanel": {
       "title": "Calls",
@@ -1783,6 +1797,18 @@
       "callLogFailed": "Failed to log call",
       "loadFailed": "Failed to load call data"
     }
+  },
+  "AiAgentToggle": {
+    "label": "AI Agent",
+    "on": "ON",
+    "off": "OFF",
+    "ariaOn": "AI Agent ON",
+    "ariaOff": "AI Agent OFF",
+    "tooltipOn": "AI is replying to all WhatsApp chats",
+    "tooltipOff": "AI paused — sales team only",
+    "toastOn": "AI Agent is ON — AI is replying to chats",
+    "toastOff": "AI Agent is OFF — sales team will reply",
+    "toastFailed": "Failed to update AI Agent state"
   }
 }
 

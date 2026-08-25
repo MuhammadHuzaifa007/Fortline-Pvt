@@ -8,6 +8,7 @@ import {
   KeyboardEvent,
 } from "react";
 import {
+  Camera,
   Send,
   LayoutTemplate,
   Paperclip,
@@ -55,6 +56,7 @@ import {
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
 import type { InteractiveMessagePayload, QuickReply } from "@/types";
 import { QuickReplyPicker } from "./quick-reply-picker";
+import { CameraModal } from "./camera-modal";
 
 /** Media content types an agent can send from the composer. */
 export type ComposerMediaKind = "image" | "video" | "document" | "audio";
@@ -162,6 +164,8 @@ export function MessageComposer({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   // Mirror of `draft` for the unmount cleanup, which can't read render
   // state. Kept in sync below so navigating away with a staged-but-unsent
   // attachment GCs the orphaned object.
@@ -418,6 +422,29 @@ export function MessageComposer({
     [stageUpload],
   );
 
+  const handleCameraSend = useCallback(
+    async (file: File, caption: string) => {
+      setBusy(true);
+      try {
+        const { publicUrl, path } = await uploadAccountMedia(CHAT_MEDIA_BUCKET, file);
+        onSendMedia({
+          kind: "image",
+          mediaUrl: publicUrl,
+          path,
+          filename: file.name,
+          caption: caption.trim() || undefined,
+          replyToId: replyTo?.id,
+        });
+        onClearReply?.();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Upload failed.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onSendMedia, replyTo?.id, onClearReply]
+  );
+
   // ---- Voice recording (client-side Ogg/Opus, no server transcode) ---
 
   // The encoded Ogg/Opus file from opus-recorder → upload as an audio
@@ -594,6 +621,17 @@ export function MessageComposer({
           e.target.value = "";
         }}
       />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          handlePicked("image", e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
 
       {draft ? (
         <MediaDraftPreview
@@ -630,6 +668,19 @@ export function MessageComposer({
         </div>
       ) : (
         <div className="flex items-end gap-2">
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={inputsDisabled || busy}
+              title={inputsDisabled ? undefined : "Camera"}
+              className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setCameraOpen(true)}
+            >
+              <Camera className="h-4 w-4" />
+            </Button>
+          )}
+
           {/* Attach menu — photo / video / document / voice. */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -804,6 +855,13 @@ export function MessageComposer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CameraModal
+        open={cameraOpen}
+        onOpenChange={setCameraOpen}
+        onSend={handleCameraSend}
+        onFallback={() => cameraInputRef.current?.click()}
+      />
 
       {/* Quick-reply picker. */}
       <QuickReplyPicker

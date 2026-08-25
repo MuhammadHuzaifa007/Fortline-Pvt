@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
   state: {
+    globalEnabled: true as boolean,
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
     claim: true as boolean,
@@ -25,6 +26,19 @@ vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
+      if (table === 'crm_ai_agent_settings') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: { enabled: h.state.globalEnabled },
+                  error: null,
+                }),
+            }),
+          }),
+        }
+      }
       if (table === 'automations') {
         // .select().eq().eq().in().limit() → active auto-responders
         const chain = {
@@ -82,6 +96,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
 }
 
 beforeEach(() => {
+  h.state.globalEnabled = true
   h.state.conv = {
     assigned_agent_id: null,
     ai_autoreply_disabled: false,
@@ -95,10 +110,17 @@ beforeEach(() => {
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
-  h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
+  h.engineSendText.mockResolvedValue({ ok: true, wamid: 'wamid-1' })
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
+  it('skips when the global AI Agent master switch is OFF', async () => {
+    h.state.globalEnabled = false
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
   it('claims a slot and sends on the happy path', async () => {
     await dispatchInboundToAiReply(ARGS)
     expect(h.state.rpcCalls).toEqual([

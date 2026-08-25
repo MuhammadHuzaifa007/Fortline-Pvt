@@ -60,7 +60,9 @@ export function TeamCallsCard() {
           setStats(null);
           return;
         }
-        throw new Error(`HTTP ${res.status}`);
+        console.warn(`[TeamCallsCard] fetch returned status ${res.status}`);
+        setStats([]);
+        return;
       }
       const data = await res.json();
       setStats(data.stats ?? []);

@@ -1741,13 +1741,16 @@
       "whatsapp": "WhatsApp 통화",
       "other": "기타"
     },
+    "customPlatform": "플랫폼 이름",
+    "customPlatformPlaceholder": "예: Instagram, Messenger, Snapchat",
     "outcomes": {
       "answered": "응답함",
       "no_answer": "응답 없음",
       "busy": "통화 중",
       "callback_scheduled": "재통화 예약",
       "not_reachable": "연결 불가",
-      "wrong_number": "잘못된 번호"
+      "wrong_number": "잘못된 번호",
+      "spam": "스팸"
     },
     "contactPanel": {
       "title": "통화 기록",
@@ -1783,6 +1786,18 @@
       "callLogFailed": "통화 기록에 실패했습니다",
       "loadFailed": "통화 데이터를 불러오지 못했습니다"
     }
+  },
+  "AiAgentToggle": {
+    "label": "AI Agent",
+    "on": "ON",
+    "off": "OFF",
+    "ariaOn": "AI Agent ON",
+    "ariaOff": "AI Agent OFF",
+    "tooltipOn": "AI가 모든 WhatsApp 채팅에 응답 중입니다",
+    "tooltipOff": "AI 일시중지 — 영업팀 전용",
+    "toastOn": "AI Agent 켜짐 — AI가 채팅에 응답합니다",
+    "toastOff": "AI Agent 꺼짐 — 영업팀이 직접 응답합니다",
+    "toastFailed": "AI Agent 상태 업데이트 실패"
   }
 }
 

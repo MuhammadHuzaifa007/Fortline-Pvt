@@ -183,8 +183,13 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
+            {contact.is_spam && (
+              <span className="mt-1.5 inline-flex items-center rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide">
+                Spam / Blocked
+              </span>
+            )}
             {contact.company && (
-              <p className="text-xs text-muted-foreground">{contact.company}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{contact.company}</p>
             )}
           </div>
 

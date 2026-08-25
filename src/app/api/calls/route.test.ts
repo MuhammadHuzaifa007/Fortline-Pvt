@@ -169,6 +169,105 @@ describe('POST /api/calls', () => {
       }),
     );
   });
+
+  it('handles other call_method and saves custom_platform', async () => {
+    mockContext.supabase.from = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: VALID_CONTACT_ID }, error: null }),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+    });
+
+    const insertMock = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'call-1',
+            contact_id: VALID_CONTACT_ID,
+            call_method: 'other',
+            custom_platform: 'Instagram',
+          },
+          error: null,
+        }),
+      }),
+    });
+
+    mocks.supabaseAdmin.mockReturnValue({
+      from: vi.fn().mockImplementation((t) => {
+        if (t === 'calls') {
+          return { insert: insertMock };
+        }
+        return {};
+      }),
+    });
+
+    const res = await POST(makePostRequest({
+      contact_id: VALID_CONTACT_ID,
+      call_method: 'other',
+      custom_platform: 'Instagram',
+    }));
+
+    expect(res.status).toBe(201);
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        call_method: 'other',
+        custom_platform: 'Instagram',
+      }),
+    );
+  });
+
+  it('handles spam outcome and flags contact as spam', async () => {
+    mockContext.supabase.from = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: VALID_CONTACT_ID }, error: null }),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+    });
+
+    const insertMock = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'call-1',
+            contact_id: VALID_CONTACT_ID,
+            outcome: 'spam',
+          },
+          error: null,
+        }),
+      }),
+    });
+
+    const updateMock = vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    mocks.supabaseAdmin.mockReturnValue({
+      from: vi.fn().mockImplementation((t) => {
+        if (t === 'calls') {
+          return { insert: insertMock };
+        }
+        if (t === 'contacts') {
+          return { update: updateMock };
+        }
+        return {};
+      }),
+    });
+
+    const res = await POST(makePostRequest({
+      contact_id: VALID_CONTACT_ID,
+      outcome: 'spam',
+    }));
+
+    expect(res.status).toBe(201);
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'spam',
+      }),
+    );
+    expect(updateMock).toHaveBeenCalledWith({ is_spam: true });
+  });
 });
 
 describe('GET /api/calls', () => {

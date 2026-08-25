@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Message } from "@/types";
 import { PhoneOutgoing, PhoneIncoming, PhoneMissed, PhoneCall } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -64,11 +64,14 @@ export function CallMessageChip({ message }: CallMessageChipProps) {
     }
   }, [callType]);
 
+  const [isExpanded, setIsExpanded] = useState(false);
+  const shouldTruncate = notesLine.length > 80;
+
   return (
     <div className="my-2.5 flex w-full flex-col items-center justify-center px-4">
       <div
         className={cn(
-          "inline-flex max-w-[90%] flex-col items-center gap-1 rounded-2xl sm:rounded-full border px-3 py-1.5 text-xs text-foreground bg-card/90 shadow-2xs backdrop-blur-xs transition-colors",
+          "inline-flex max-w-[90%] flex-col items-center gap-1.5 rounded-2xl border px-3 py-1.5 text-xs text-foreground bg-card/90 shadow-2xs backdrop-blur-xs transition-colors",
           chipBorderClass,
         )}
       >
@@ -84,9 +87,22 @@ export function CallMessageChip({ message }: CallMessageChipProps) {
           <span className="break-words">{line1}</span>
         </div>
         {notesLine && (
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground italic px-2">
-            <span>📝</span>
-            <span className="break-words">{notesLine}</span>
+          <div className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground italic px-2">
+            <div className="flex items-start gap-1">
+              <span className="shrink-0">📝</span>
+              <span className="break-words text-center whitespace-pre-wrap">
+                {shouldTruncate && !isExpanded ? notesLine.slice(0, 80) + "..." : notesLine}
+              </span>
+            </div>
+            {shouldTruncate && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="font-semibold text-primary hover:underline cursor-pointer not-italic select-none"
+              >
+                {isExpanded ? "View Less" : "Read More"}
+              </button>
+            )}
           </div>
         )}
       </div>

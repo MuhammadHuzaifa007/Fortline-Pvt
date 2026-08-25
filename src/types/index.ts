@@ -113,6 +113,7 @@ export interface Contact {
   /** Hydrated by queries that embed `contact_tags(tags(*))` (e.g. the
    *  Inbox conversation list, for tag filtering). Absent otherwise. */
   tags?: Tag[];
+  is_spam?: boolean;
 }
 
 export interface Tag {
@@ -669,7 +670,8 @@ export type CallOutcome =
   | 'busy'
   | 'callback_scheduled'
   | 'not_reachable'
-  | 'wrong_number';
+  | 'wrong_number'
+  | 'spam';
 
 export interface Call {
   id: string;
@@ -679,6 +681,7 @@ export interface Call {
   agent_id: string;
   direction: CallDirection;
   call_method: CallMethod;
+  custom_platform?: string | null;
   duration_seconds: number;
   outcome: CallOutcome;
   notes?: string | null;

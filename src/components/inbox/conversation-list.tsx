@@ -471,8 +471,13 @@ function ConversationItem({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
+          <span className="truncate text-sm font-medium text-foreground flex items-center gap-1.5">
             {displayName}
+            {contact?.is_spam && (
+              <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-medium text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
+                Spam
+              </span>
+            )}
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>

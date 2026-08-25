@@ -936,7 +936,14 @@ export function MessageThread({
             {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
+            <h2 className="truncate text-sm font-semibold text-foreground flex items-center gap-1.5">
+              {displayName}
+              {contact.is_spam && (
+                <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
+                  Spam
+                </span>
+              )}
+            </h2>
             <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
@@ -1206,16 +1213,22 @@ export function MessageThread({
       />
 
       {/* Composer */}
-      <MessageComposer
-        conversationId={conversation.id}
-        sessionExpired={sessionInfo.expired}
-        onSend={handleSend}
-        onSendMedia={handleSendMedia}
-        onSendInteractive={handleSendInteractive}
-        onOpenTemplates={handleOpenTemplates}
-        replyTo={replyTo}
-        onClearReply={() => setReplyTo(null)}
-      />
+      {contact.is_spam ? (
+        <div className="flex h-16 items-center justify-center border-t border-border bg-muted/20 px-4 text-xs font-semibold text-rose-500 uppercase tracking-wide">
+          🚫 Cannot reply to a spam/blocked contact
+        </div>
+      ) : (
+        <MessageComposer
+          conversationId={conversation.id}
+          sessionExpired={sessionInfo.expired}
+          onSend={handleSend}
+          onSendMedia={handleSendMedia}
+          onSendInteractive={handleSendInteractive}
+          onOpenTemplates={handleOpenTemplates}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
+        />
+      )}
 
       <TemplatePicker
         open={templateModalOpen}
