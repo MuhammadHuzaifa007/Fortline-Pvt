@@ -15,47 +15,63 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
  *   - HSTS: only meaningful on HTTPS (no-op on http://localhost).
  *   - X-Content-Type-Options / X-Frame-Options / Referrer-Policy:
  *     baseline OWASP hardening, no behavioural cost.
- *   - Permissions-Policy: we don't use camera / microphone / etc, so
- *     deny them. A supply-chain compromise or a forgotten plugin
- *     can't silently opt back in.
+ *   - Permissions-Policy: camera and microphone are allowed for
+ *     same-origin usage by the CRM. Other sensitive features remain
+ *     disabled.
  */
 const SECURITY_HEADERS = [
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
-    // Microphone is allowed for same-origin (`self`) so the inbox
-    // composer can record voice notes via MediaRecorder. Everything
-    // else stays denied — a compromised dependency can't silently grab
-    // the camera / geolocation / etc.
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    // Camera and microphone are allowed for same-origin usage.
+    // Camera is required by the inbox camera modal.
+    // Microphone is required for voice-note recording.
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
+    value:
+      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()",
   },
   {
     key: "Content-Security-Policy-Report-Only",
     value: [
       "default-src 'self'",
+
       // Next.js needs 'unsafe-inline' for its inline hydration script
       // and 'unsafe-eval' in dev + some production optimisations.
       // Nonce-based CSP is a later project.
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+
       // Tailwind + inline style attributes on lots of components.
       "style-src 'self' 'unsafe-inline'",
+
       // Supabase public-bucket avatars, contact avatars (arbitrary
       // https URLs paste-able from the UI), OG images, data URLs for
       // tiny inline assets.
       "img-src 'self' data: blob: https:",
+
       // Outbound media previews (blob: from MediaRecorder + file picker)
       // and Supabase public-bucket audio/video the inbox renders.
       "media-src 'self' blob: https://*.supabase.co",
+
       "font-src 'self' data:",
+
       // Supabase REST + realtime (WSS). All Meta API calls happen
       // server-side, so graph.facebook.com does not belong here.
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -74,10 +90,11 @@ const nextConfig: NextConfig = {
    *
    * Next 16 blocks requests to dev-only resources (`/_next/*` internals,
    * the HMR websocket, the dev overlay) unless the browser's Origin is
-   * the host the dev server booted on — `localhost` by default. Tunnels
-   * like ngrok serve the app from a public HTTPS host, so without
+   * the host the dev server booted on — `localhost` by default.
+   *
+   * Tunnels like ngrok serve the app from a public HTTPS host, so without
    * allow-listing that host those dev requests come back 403: HMR stops
-   * working and the dev session degrades over the tunnel (issue #365).
+   * working and the dev session degrades over the tunnel.
    *
    * Wildcards match subdomains only (Next's CSRF matcher), so the
    * randomised tunnel subdomain is covered. Add any other host via
@@ -91,7 +108,8 @@ const nextConfig: NextConfig = {
     "*.trycloudflare.com",
     "*.loca.lt",
     ...(process.env.ALLOWED_DEV_ORIGINS
-      ? process.env.ALLOWED_DEV_ORIGINS.split(",")
+      ? process.env.ALLOWED_DEV_ORIGINS
+          .split(",")
           .map((origin) => origin.trim())
           .filter(Boolean)
       : []),
@@ -118,9 +136,7 @@ const nextConfig: NextConfig = {
    *   - Everything else — public, brief s-maxage + generous
    *     stale-while-revalidate. The edge serves instantly from cache
    *     for the first 5 min, then returns cached content while
-   *     refreshing in the background for up to 24 h. A deploy's
-   *     chunk-hash drift self-heals within ~5 min with no user-
-   *     visible latency.
+   *     refreshing in the background for up to 24 h.
    *
    *   Note: dynamic dashboard routes (/inbox, /contacts, /pipelines,
    *   /broadcasts, etc.) are server-rendered per request — Next.js
@@ -138,7 +154,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store",
+          },
+        ],
       },
       {
         source: "/:path((?!_next/static|_next/image|api).*)",
