@@ -32,7 +32,7 @@ export function CameraModal({
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
-  const [errorType, setErrorType] = useState<"denied" | "notfound" | "other" | null>(null);
+  const [errorType, setErrorType] = useState<"denied" | "inuse" | "notfound" | "other" | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -50,30 +50,60 @@ export function CameraModal({
   const startStream = useCallback(async () => {
     stopStream();
     setErrorType(null);
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setErrorType("notfound");
+      toast.error(t("notFound"));
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        });
+      } catch (constraintErr) {
+        console.warn("[CameraModal] Ideal constraint failed, retrying with simple video: true", constraintErr);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
       }
     } catch (err: unknown) {
+      console.error("[CameraModal] getUserMedia error:", err);
       if (err instanceof Error) {
-        if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+        if (
+          err.name === "NotAllowedError" ||
+          err.name === "PermissionDeniedError" ||
+          err.name === "SecurityError"
+        ) {
           setErrorType("denied");
           toast.error(t("permissionDenied"));
-        } else if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
+        } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+          setErrorType("inuse");
+          toast.error(t("inUse"));
+        } else if (
+          err.name === "NotFoundError" ||
+          err.name === "DevicesNotFoundError" ||
+          err.name === "OverconstrainedError"
+        ) {
           setErrorType("notfound");
           toast.error(t("notFound"));
         } else {
           setErrorType("other");
-          toast.error(t("error"));
+          toast.error(err.message || t("error"));
         }
       } else {
         setErrorType("other");
@@ -238,8 +268,13 @@ export function CameraModal({
              errorType ? (
                 <div className="text-center p-6 space-y-4 z-20">
                   <p className="text-white text-sm">
-                    {errorType === "denied" ? t("permissionDenied") : 
-                     errorType === "notfound" ? t("notFound") : t("error")}
+                    {errorType === "denied"
+                      ? t("permissionDenied")
+                      : errorType === "inuse"
+                      ? t("inUse")
+                      : errorType === "notfound"
+                      ? t("notFound")
+                      : t("error")}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2 justify-center">
                     <Button

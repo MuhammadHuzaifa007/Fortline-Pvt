@@ -209,6 +209,7 @@
       "retake": "Retake",
       "flipCamera": "Flip camera",
       "permissionDenied": "Camera access blocked. Allow it in site settings.",
+      "inUse": "Camera is in use by another app or disabled in system settings.",
       "notFound": "No camera found.",
       "error": "Couldn't start the camera.",
       "galleryFallback": "Choose from gallery instead",
