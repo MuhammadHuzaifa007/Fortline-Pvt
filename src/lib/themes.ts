@@ -71,7 +71,7 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
     id: "emerald",
     name: "WhatsApp Green",
     tagline: "Official WhatsApp Business green color scheme.",
-    swatch: "oklch(0.65 0.22 152)",
+    swatch: "#008069",
   },
   {
     id: "violet",

@@ -85,27 +85,28 @@ export function AiAgentToggle({ className }: { className?: string }) {
       aria-pressed={enabled}
       title={title}
       className={cn(
-        "inline-flex h-9 sm:h-10 min-h-[36px] items-center gap-2 rounded-full px-3.5 sm:px-4 text-xs sm:text-sm font-semibold text-white whitespace-nowrap transition-all select-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-80 disabled:cursor-not-allowed",
+        "inline-flex h-7 sm:h-8 items-center gap-1.5 rounded-full px-2.5 sm:px-3 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all select-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-80 disabled:cursor-not-allowed shadow-sm active:scale-95",
         enabled
-          ? "bg-[#25D366] hover:bg-[#20bd5a] focus-visible:ring-[#25D366] shadow-[0_0_0_3px_rgba(37,211,102,0.25)]"
-          : "bg-[#DC2626] hover:bg-[#b91c1c] focus-visible:ring-[#DC2626]",
+          ? "bg-[#008069] hover:bg-[#006d59] text-white focus-visible:ring-[#008069]"
+          : "bg-muted/80 hover:bg-muted text-muted-foreground border border-border focus-visible:ring-border",
         className
       )}
     >
       <span>{t("label")}</span>
 
       {isPending ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-white" />
+        <Loader2 className="h-3 w-3 animate-spin shrink-0" />
       ) : (
         <span
-          className="text-sm leading-none shrink-0"
+          className={cn(
+            "h-1.5 w-1.5 rounded-full shrink-0",
+            enabled ? "bg-white" : "bg-muted-foreground/60"
+          )}
           aria-hidden="true"
-        >
-          {enabled ? "●" : "○"}
-        </span>
+        />
       )}
 
-      <span className="uppercase tracking-wide font-bold">
+      <span className="uppercase tracking-wider font-bold text-[10px] sm:text-[11px]">
         {enabled ? t("on") : t("off")}
       </span>
     </button>

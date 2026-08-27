@@ -194,7 +194,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <span className="truncate text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
                 iTechSkill
               </span>
-              <span className="truncate text-[11px] font-semibold text-[#25D366] leading-none">
+              <span className="truncate text-[11px] font-semibold text-[#008069] leading-none">
                 WhatsApp CRM
               </span>
             </div>

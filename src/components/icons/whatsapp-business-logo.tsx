@@ -29,7 +29,7 @@ export function WhatsAppBusinessLogo({ className = "h-5 w-5", ...props }: IconPr
 
 export function WhatsAppBadgeLogo({ className = "h-8 w-8" }: { className?: string }) {
   return (
-    <div className={`relative flex items-center justify-center rounded-xl bg-[#25D366] text-white shadow-md shadow-[#25D366]/30 transition-transform hover:scale-105 ${className}`}>
+    <div className={`relative flex items-center justify-center rounded-xl bg-[#008069] text-white shadow-md shadow-[#008069]/30 transition-transform hover:scale-105 ${className}`}>
       <svg
         viewBox="0 0 24 24"
         fill="none"

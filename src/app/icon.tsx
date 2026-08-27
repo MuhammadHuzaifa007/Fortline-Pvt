@@ -18,7 +18,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#25D366", // WhatsApp Green
+          background: "#008069", // WhatsApp Green
           borderRadius: 8,
         }}
       >
