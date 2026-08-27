@@ -34,7 +34,7 @@ import {
   Maximize2,
   Film,
 } from "lucide-react";
-import { WhatsAppBadgeLogo, WhatsAppPhoneIcon } from "@/components/icons/whatsapp-business-logo";
+import { WhatsAppBadgeLogo, WhatsAppPhoneIcon, WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
 import { Button } from "@/components/ui/button";
 
 export default function LandingPage() {
@@ -487,7 +487,7 @@ export default function LandingPage() {
             {/* Feature 1 */}
             <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#008069]/50 transition-all hover:translate-y-[-2px] group">
               <div className="h-12 w-12 rounded-xl bg-[#008069]/20 text-[#25D366] flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <MessageSquare className="h-6 w-6" />
+                <WhatsAppChatsIcon className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Unified Multi-Agent Inbox</h3>
               <p className="text-sm text-gray-400 leading-relaxed">

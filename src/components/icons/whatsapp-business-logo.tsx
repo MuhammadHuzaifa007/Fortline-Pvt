@@ -5,6 +5,28 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
 }
 
 /**
+ * Official WhatsApp Web Chats / Inbox Icon with the signature rounded speech bubble outline
+ * and bottom-left curved tail matching WhatsApp Web navigation.
+ */
+export function WhatsAppChatsIcon({ className = "h-5 w-5", ...props }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      {...props}
+    >
+      <path d="M12 3.5C7.306 3.5 3.5 6.977 3.5 11.266c0 1.638.567 3.153 1.54 4.387L4 20l4.524-1.042c1.066.52 2.274.808 3.476.808 4.694 0 8.5-3.477 8.5-7.766S16.694 3.5 12 3.5z" />
+    </svg>
+  );
+}
+
+/**
  * Official WhatsApp Phone Icon with classic telephone handset inside speech bubble.
  */
 export function WhatsAppPhoneIcon({ className = "h-6 w-6", ...props }: IconProps) {

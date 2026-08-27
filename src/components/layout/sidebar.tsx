@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
-import { WhatsAppBadgeLogo } from "@/components/icons/whatsapp-business-logo";
+import { WhatsAppBadgeLogo, WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
 import {
   Bell,
   Bot,
@@ -15,7 +15,6 @@ import {
   GitBranch,
   LayoutDashboard,
   LogOut,
-  MessageCircle,
   Radio,
   Settings,
   Shield,
@@ -82,7 +81,7 @@ import {
 interface NavItem {
   href: string;
   labelKey: string;
-  icon: typeof LayoutDashboard;
+  icon: React.ComponentType<{ className?: string }>;
   /**
    * When true, the nav row renders a small "Beta" chip after the label.
    * Purely informational — doesn't affect routing or access.
@@ -92,7 +91,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { href: "/inbox", labelKey: "inbox", icon: MessageCircle },
+  { href: "/inbox", labelKey: "inbox", icon: WhatsAppChatsIcon },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
