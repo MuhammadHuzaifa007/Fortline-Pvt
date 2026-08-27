@@ -15,7 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageCircle, CheckCircle, UsersRound, AlertCircle } from "lucide-react";
+import { MessageCircle, CheckCircle, UsersRound, AlertCircle, ArrowLeft } from "lucide-react";
+import { WhatsAppBadgeLogo } from "@/components/icons/whatsapp-business-logo";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -129,20 +130,36 @@ function SignupPageInner() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border bg-card">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            {inviteToken ? (
-              <UsersRound className="h-6 w-6 text-primary" />
-            ) : (
-              <MessageCircle className="h-6 w-6 text-primary" />
-            )}
-          </div>
-          <CardTitle className="text-xl text-foreground">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-[#070d0c] px-4 py-12">
+      {/* Subtle ambient glow */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-[#008069]/15 blur-[120px] rounded-full pointer-events-none" />
+
+      {/* Back to Home Navigation */}
+      <div className="w-full max-w-md mb-6 flex items-center justify-between z-10">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to iTechSkill
+        </Link>
+        <span className="text-[11px] font-medium text-emerald-400/80 flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#25D366] animate-pulse" /> Meta Cloud API
+        </span>
+      </div>
+
+      <Card className="w-full max-w-md border-white/10 bg-[#0d1615]/90 shadow-2xl backdrop-blur-xl z-10">
+        <CardHeader className="items-center text-center pb-4">
+          <Link href="/" className="flex items-center gap-2 mb-3">
+            <WhatsAppBadgeLogo className="h-10 w-10 shadow-md shadow-[#008069]/30" />
+            <div className="flex flex-col text-left">
+              <span className="font-extrabold text-white text-base leading-tight">iTechSkill CRM</span>
+              <span className="text-[10px] text-gray-400">WhatsApp Business Platform</span>
+            </div>
+          </Link>
+          <CardTitle className="text-xl text-white font-bold">
             {inviteToken ? "Create account & join" : "Create account"}
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="text-gray-400 text-xs mt-1">
             {inviteToken
               ? "Verify your email, then accept the invitation to join your team."
               : "Get started with iTechSkill WhatsApp CRM"}

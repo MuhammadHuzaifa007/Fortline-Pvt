@@ -787,7 +787,7 @@ export function MessageComposer({
               className="h-9 w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => setCameraOpen(true)}
             >
-              <Camera className="h-5 w-5" />
+              <Camera className="h-[22px] w-[22px]" />
             </Button>
           )}
 

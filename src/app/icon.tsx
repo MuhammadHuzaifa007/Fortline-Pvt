@@ -18,8 +18,8 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#008069", // WhatsApp Green
-          borderRadius: 8,
+          background: "#25D366", // Vibrant WhatsApp Green for high visibility on dark and light tab bars
+          borderRadius: 7,
         }}
       >
         <svg
@@ -36,7 +36,7 @@ export default function Icon() {
           {/* Teal WhatsApp Business Capital 'B' emblem */}
           <path
             d="M9.25 7.5H12.6C14.05 7.5 15.05 8.25 15.05 9.42C15.05 10.25 14.55 10.9 13.7 11.18C14.7 11.45 15.35 12.25 15.35 13.28C15.35 14.68 14.2 15.5 12.55 15.5H9.25V7.5ZM10.75 8.85V10.6H12.45C13.1 10.6 13.55 10.3 13.55 9.72C13.55 9.15 13.1 8.85 12.45 8.85H10.75ZM10.75 11.85V14.15H12.55C13.25 14.15 13.8 13.8 13.8 13C13.8 12.2 13.25 11.85 12.55 11.85H10.75Z"
-            fill="#128C7E"
+            fill="#075E54"
           />
         </svg>
       </div>
