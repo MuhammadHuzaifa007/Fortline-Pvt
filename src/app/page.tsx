@@ -280,125 +280,20 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Video Player Container */}
+            {/* Real Video Player Container */}
             <div className="relative aspect-video w-full bg-[#050a09] flex items-center justify-center overflow-hidden">
-              {/* Optional HTML5 Video (Auto-loop fallback or user upload) */}
               <video
                 ref={videoRef}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-black"
+                controls
+                autoPlay
+                muted
                 loop
-                muted={videoMuted}
                 playsInline
-                poster="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1600&auto=format&fit=crop"
-                onPlay={() => setVideoPlaying(true)}
-                onPause={() => setVideoPlaying(false)}
               >
-                {/* Fallback sample MP4 video / users can replace with their demo video */}
-                <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
+                <source src="/video/Front%20End%20Video.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
               </video>
-
-              {/* Video Overlay / Big Centered Play Button */}
-              {!videoPlaying && (
-                <div className="absolute inset-0 bg-[#070d0c]/70 backdrop-blur-xs flex flex-col items-center justify-center text-center p-6 transition-opacity">
-                  {/* Glowing Play Button */}
-                  <button
-                    type="button"
-                    onClick={toggleVideoPlay}
-                    aria-label="Play Walkthrough Video"
-                    className="relative group/play flex items-center justify-center h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-[#25D366] text-[#070d0c] shadow-2xl shadow-[#25D366]/50 transition-all hover:scale-110 active:scale-95 mb-5 cursor-pointer"
-                  >
-                    <span className="absolute -inset-2 rounded-full bg-[#25D366]/30 animate-ping pointer-events-none" />
-                    <Play className="h-9 w-9 sm:h-10 sm:w-10 fill-current ml-1 text-[#070d0c]" />
-                  </button>
-
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white mb-2">
-                    Watch the 2-Minute iTechSkill CRM Walkthrough
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-300 max-w-lg mb-4">
-                    Learn how to connect Meta Cloud API, deploy 24/7 AI bots, send broadcast campaigns, and assign team chats.
-                  </p>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setVideoModalOpen(true)}
-                      className="px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 transition-colors flex items-center gap-1.5"
-                    >
-                      <Maximize2 className="h-3.5 w-3.5" /> Fullscreen Theater Mode
-                    </button>
-                    <a
-                      href="https://www.youtube.com/@itechskill-6"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-1.5 rounded-full bg-red-600/20 hover:bg-red-600/30 text-red-300 text-xs font-semibold border border-red-500/30 transition-colors flex items-center gap-1.5"
-                    >
-                      <Film className="h-3.5 w-3.5" /> Watch on YouTube Channel
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom Custom Video Controls Bar */}
-              <div className="absolute bottom-0 inset-x-0 p-3 sm:p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-between text-white text-xs">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={toggleVideoPlay}
-                    className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
-                  >
-                    {videoPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (videoRef.current) {
-                        videoRef.current.muted = !videoMuted;
-                      }
-                      setVideoMuted(!videoMuted);
-                    }}
-                    className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
-                  >
-                    {videoMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                  </button>
-                  <span className="text-[11px] text-gray-300 font-mono">01:24 / 02:45</span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="flex-1 mx-4 h-1.5 bg-white/20 rounded-full overflow-hidden cursor-pointer">
-                  <div className="h-full bg-[#25D366] rounded-full w-[45%]" />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setVideoModalOpen(true)}
-                    className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
-                    title="Fullscreen"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Video Chapters / Feature Highlights Footer */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-white/10 bg-[#091110] text-left text-xs p-3">
-              <div className="px-3 py-1">
-                <span className="text-[10px] text-[#25D366] font-bold">0:00 - 0:35</span>
-                <p className="font-semibold text-gray-200 truncate">Meta API 2-Min Setup</p>
-              </div>
-              <div className="px-3 py-1">
-                <span className="text-[10px] text-[#25D366] font-bold">0:35 - 1:15</span>
-                <p className="font-semibold text-gray-200 truncate">24/7 AI Knowledge Base</p>
-              </div>
-              <div className="px-3 py-1">
-                <span className="text-[10px] text-[#25D366] font-bold">1:15 - 1:55</span>
-                <p className="font-semibold text-gray-200 truncate">Multi-Agent Team Inbox</p>
-              </div>
-              <div className="px-3 py-1">
-                <span className="text-[10px] text-[#25D366] font-bold">1:55 - 2:45</span>
-                <p className="font-semibold text-gray-200 truncate">50,000 Bulk Broadcasts</p>
-              </div>
             </div>
           </div>
         ) : (
@@ -566,7 +461,7 @@ export default function LandingPage() {
                 autoPlay
                 className="w-full h-full object-contain"
               >
-                <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4" />
+                <source src="/video/Front%20End%20Video.mp4" type="video/mp4" />
               </video>
             </div>
           </div>
