@@ -13,8 +13,10 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
+import { HandoffQueue } from "@/components/operations/handoff-queue";
+import { WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
 import { toast } from "sonner";
-import { WifiOff } from "lucide-react";
+import { WifiOff, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
@@ -560,9 +562,73 @@ function InboxPageInner() {
   // it back to the list. On lg+ both panes render side-by-side as
   // before, unchanged.
   const hasActiveConv = !!activeConversation;
+  const activeTab = searchParams.get("tab") === "handoffs" ? "handoffs" : "chats";
+
+  const setTab = (tab: "chats" | "handoffs") => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "handoffs") {
+      params.set("tab", "handoffs");
+    } else {
+      params.delete("tab");
+    }
+    router.replace(`/inbox?${params.toString()}`, { scroll: false });
+  };
+
+  const handleSelectConversationByPhone = useCallback(
+    (phone: string) => {
+      const match = conversations.find(
+        (c) => c.contact?.phone === phone
+      );
+      if (match) {
+        handleSelectConversation(match);
+        const params = new URLSearchParams();
+        params.set("c", match.id);
+        router.replace(`/inbox?${params.toString()}`, { scroll: false });
+      } else {
+        setTab("chats");
+      }
+    },
+    [conversations, handleSelectConversation, router]
+  );
 
   return (
     <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+      {/* Top sub-nav bar for Chats vs Handoffs */}
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setTab("chats")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors",
+              activeTab === "chats"
+                ? "bg-[#008069] text-white"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <WhatsAppChatsIcon className="h-3.5 w-3.5" />
+            Chats
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("handoffs")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-colors",
+              activeTab === "handoffs"
+                ? "bg-[#008069] text-white"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <UserCheck className="h-3.5 w-3.5" />
+            Handoffs Queue
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="hidden sm:inline">iTechSkill Operations Engine</span>
+        </div>
+      </div>
+
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
       {whatsappConnected === false && (
@@ -574,68 +640,62 @@ function InboxPageInner() {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left panel: Conversation list.
-            Hidden on mobile when a conversation is selected so the
-            thread can occupy the full width. Always visible on lg+. */}
-        <div
-          className={cn(
-            "flex h-full flex-1 lg:flex-none",
-            hasActiveConv ? "hidden lg:flex" : "flex",
-          )}
-        >
-          <ConversationList
-            activeConversationId={activeConversation?.id ?? null}
-            onSelect={handleSelectConversation}
-            conversations={conversations}
-            onConversationsLoaded={handleConversationsLoaded}
-            resyncToken={resyncToken}
-          />
+      {activeTab === "handoffs" ? (
+        <div className="flex-1 p-4 overflow-hidden bg-background">
+          <HandoffQueue onSelectConversation={handleSelectConversationByPhone} />
         </div>
-
-        {/* Center panel: Message thread.
-            Hidden on mobile when no conversation is selected so the
-            list can occupy the full width. Always visible on lg+
-            (shows its own empty-state if no thread is picked yet).
-
-            `min-w-0` is load-bearing: without it, a single wide piece
-            of content inside the thread (long quote preview, very
-            long URL in a message body) forces the flex child past
-            its share and pushes the contact-sidebar panel off-screen
-            on the right. Issue #165. */}
-        <div
-          className={cn(
-            "flex h-full min-w-0 flex-1 lg:flex",
-            hasActiveConv ? "flex" : "hidden lg:flex",
-          )}
-        >
-          <MessageThread
-            conversation={activeConversation}
-            contact={activeContact}
-            messages={messages}
-            onMessagesLoaded={handleMessagesLoaded}
-            onNewMessage={handleNewMessage}
-            onUpdateMessage={handleUpdateMessage}
-            onStatusChange={handleStatusChange}
-            onAssignChange={handleAssignChange}
-            onBack={handleCloseConversation}
-            resyncToken={resyncToken}
-            onRefresh={handleManualRefresh}
-            contactPanelOpen={contactPanelOpen}
-            onToggleContactPanel={handleToggleContactPanel}
-          />
-        </div>
-
-        {/* Right panel: Contact sidebar — desktop only, and only when the
-            agent hasn't collapsed it via the thread-header toggle (#258).
-            On mobile it's always hidden (the `lg:block` below), so the
-            toggle — which is itself desktop-only — never affects it. */}
-        {contactPanelOpen && (
-          <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} />
+      ) : (
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left panel: Conversation list.
+              Hidden on mobile when a conversation is selected so the
+              thread can occupy the full width. Always visible on lg+. */}
+          <div
+            className={cn(
+              "flex h-full flex-1 lg:flex-none",
+              hasActiveConv ? "hidden lg:flex" : "flex",
+            )}
+          >
+            <ConversationList
+              activeConversationId={activeConversation?.id ?? null}
+              onSelect={handleSelectConversation}
+              conversations={conversations}
+              onConversationsLoaded={handleConversationsLoaded}
+              resyncToken={resyncToken}
+            />
           </div>
-        )}
-      </div>
+
+          {/* Center panel: Message thread. */}
+          <div
+            className={cn(
+              "flex h-full min-w-0 flex-1 lg:flex",
+              hasActiveConv ? "flex" : "hidden lg:flex",
+            )}
+          >
+            <MessageThread
+              conversation={activeConversation}
+              contact={activeContact}
+              messages={messages}
+              onMessagesLoaded={handleMessagesLoaded}
+              onNewMessage={handleNewMessage}
+              onUpdateMessage={handleUpdateMessage}
+              onStatusChange={handleStatusChange}
+              onAssignChange={handleAssignChange}
+              onBack={handleCloseConversation}
+              resyncToken={resyncToken}
+              onRefresh={handleManualRefresh}
+              contactPanelOpen={contactPanelOpen}
+              onToggleContactPanel={handleToggleContactPanel}
+            />
+          </div>
+
+          {/* Right panel: Contact sidebar */}
+          {contactPanelOpen && (
+            <div className="hidden lg:block">
+              <ContactSidebar contact={activeContact} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

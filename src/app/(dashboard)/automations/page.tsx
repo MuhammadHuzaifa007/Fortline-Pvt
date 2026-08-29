@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   Zap,
@@ -16,6 +16,7 @@ import {
   Users,
   PhoneCall,
   Loader2,
+  CalendarClock,
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/dialog"
 import { AUTOMATION_TEMPLATES, type TemplateSlug } from "@/lib/automations/templates"
 import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
+import { FollowupQueue } from "@/components/operations/followup-queue"
 import { cn } from "@/lib/utils"
 
 const TEMPLATE_ORDER: TemplateSlug[] = [
@@ -59,7 +61,17 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
 }
 
 export default function AutomationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AutomationsPageInner />
+    </Suspense>
+  )
+}
+
+function AutomationsPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const tab = searchParams.get("tab") === "followups" ? "followups" : "rules"
   const canCreate = useCan("send-messages")
   const t = useTranslations("Automations.list")
   const [automations, setAutomations] = useState<Automation[] | null>(null)
@@ -160,25 +172,61 @@ export default function AutomationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {t("subtitle")}
           </p>
         </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create automations"
-          onClick={() => router.push("/automations/new")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          {t("create")}
-        </GatedButton>
+        {tab === "rules" && (
+          <GatedButton
+            canAct={canCreate}
+            gateReason="create automations"
+            onClick={() => router.push("/automations/new")}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 self-start sm:self-auto"
+          >
+            <Plus className="h-4 w-4" />
+            {t("create")}
+          </GatedButton>
+        )}
       </div>
 
-      {showTemplates && (
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-2 border-b border-border pb-3">
+        <button
+          type="button"
+          onClick={() => router.replace("/automations?tab=rules", { scroll: false })}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+            tab === "rules"
+              ? "bg-[#008069] text-white"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <Zap className="h-3.5 w-3.5" />
+          Automation Rules
+        </button>
+        <button
+          type="button"
+          onClick={() => router.replace("/automations?tab=followups", { scroll: false })}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors",
+            tab === "followups"
+              ? "bg-[#008069] text-white"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <CalendarClock className="h-3.5 w-3.5" />
+          Scheduled Follow-ups (n8n Engine)
+        </button>
+      </div>
+
+      {tab === "followups" ? (
+        <FollowupQueue />
+      ) : (
+        <>
+          {showTemplates && (
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("templatesTitle")}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -257,6 +305,8 @@ export default function AutomationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </div>
   )
 }

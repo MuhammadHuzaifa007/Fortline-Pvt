@@ -34,6 +34,7 @@ import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { TeamCallsCard } from '@/components/dashboard/team-calls-card'
+import { OpsKpiStrip } from '@/components/operations/ops-kpi-strip'
 
 import { useTranslations } from 'next-intl'
 
@@ -131,6 +132,9 @@ export default function DashboardPage() {
           {t('description')}
         </p>
       </div>
+
+      {/* Operations Live Pulse from n8n engine */}
+      <OpsKpiStrip />
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

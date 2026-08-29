@@ -118,3 +118,18 @@ export function canViewCallStats(role: AccountRole): boolean {
   return hasMinRole(role, "admin");
 }
 
+/** Owner / admin: manage operations, incidents, catalog governance, and AI health. */
+export function canManageOperations(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/** Owner / admin: approve or reject student admissions and payment receipts. */
+export function canManageAdmissions(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
+/** Owner / admin / agent: view operational views, handoffs queue, and follow-ups. */
+export function canViewOperations(role: AccountRole): boolean {
+  return hasMinRole(role, "agent");
+}
+

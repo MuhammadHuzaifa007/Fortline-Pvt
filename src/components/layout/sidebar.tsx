@@ -13,6 +13,7 @@ import {
   Bot,
   Crown,
   GitBranch,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Radio,
@@ -92,6 +93,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/inbox", labelKey: "inbox", icon: WhatsAppChatsIcon },
+  { href: "/admissions", labelKey: "admissions", icon: GraduationCap },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },

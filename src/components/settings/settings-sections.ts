@@ -1,4 +1,6 @@
 import {
+  Activity,
+  BookOpen,
   Coins,
   FileText,
   KeyRound,
@@ -33,6 +35,8 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'members',
   'api',
+  'catalog-governance',
+  'operations',
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
@@ -44,7 +48,7 @@ export interface SectionMeta {
   id: SettingsSection;
   label: string;
   icon: LucideIcon;
-  group: 'top' | 'account' | 'workspace';
+  group: 'top' | 'account' | 'workspace' | 'operations';
 }
 
 export const SECTION_META: Record<SettingsSection, SectionMeta> = {
@@ -59,12 +63,15 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   deals: { id: 'deals', label: 'Deals & currency', icon: Coins, group: 'workspace' },
   members: { id: 'members', label: 'Team members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', label: 'API keys', icon: KeyRound, group: 'workspace' },
+  'catalog-governance': { id: 'catalog-governance', label: 'Catalog Governance', icon: BookOpen, group: 'operations' },
+  operations: { id: 'operations', label: 'Operations & Incidents', icon: Activity, group: 'operations' },
 };
 
 export const RAIL_GROUPS: { label: string | null; group: SectionMeta['group'] }[] = [
   { label: null, group: 'top' },
   { label: 'Account', group: 'account' },
   { label: 'Workspace', group: 'workspace' },
+  { label: 'iTechSkill Operations', group: 'operations' },
 ];
 
 function isSection(value: string | null): value is SettingsSection {

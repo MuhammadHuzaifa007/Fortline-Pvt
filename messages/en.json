@@ -18,6 +18,7 @@
     "title": "iTechSkill WhatsApp CRM",
     "dashboard": "Dashboard",
     "inbox": "Inbox",
+    "admissions": "Admissions",
     "notifications": "Notifications",
     "contacts": "Contacts",
     "pipelines": "Pipelines",
@@ -1539,11 +1540,14 @@
       "fields": "Fields & tags",
       "deals": "Deals & currency",
       "members": "Team members",
-      "api": "API keys"
+      "api": "API keys",
+      "catalog-governance": "Catalog Governance",
+      "operations": "Operations & Incidents"
     },
     "groups": {
       "account": "Account",
-      "workspace": "Workspace"
+      "workspace": "Workspace",
+      "operations": "iTechSkill Operations"
     },
     "profile": {
       "title": "Your profile",
