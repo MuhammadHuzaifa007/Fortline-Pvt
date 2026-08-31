@@ -19,6 +19,8 @@ import {
   PhoneOutgoing,
   PhoneIncoming,
   PhoneMissed,
+  Flame,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -53,6 +55,13 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
+  const [student360, setStudent360] = useState<{
+    lead_band: string | null;
+    lead_score: number | null;
+    selected_program_name: string | null;
+    selected_program_type: string | null;
+    lifecycle_stage: string | null;
+  } | null>(null);
   const [callsData, setCallsData] = useState<{
     calls: CallWithAgent[];
     summary: CallSummary;
@@ -65,7 +74,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
+    // Fetch deals, notes, tags, and student 360 in parallel
     const [dealsRes, notesRes, tagsRes] = await Promise.all([
       supabase
         .from("deals")
@@ -93,6 +102,23 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           contact_tag_id: ct.id as string,
         }));
       setTags(mapped);
+    }
+
+    if (contact.phone) {
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from("itechskill_student_360")
+            .select("lead_band, lead_score, selected_program_name, selected_program_type, lifecycle_stage")
+            .eq("phone", contact.phone)
+            .maybeSingle();
+          setStudent360(data ?? null);
+        } catch {
+          setStudent360(null);
+        }
+      })();
+    } else {
+      setStudent360(null);
     }
 
     // Fetch calls lazily without blocking inbox
@@ -183,6 +209,18 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
+            {student360 && (student360.lead_band === "hot" || student360.lead_band === "sales_ready" || (student360.lead_score !== null && student360.lead_score >= 70)) && (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-500 border border-amber-500/30 shadow-sm">
+                <Flame className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                <span>🔥 Hot Lead ({student360.lead_score ?? 80}/100)</span>
+              </div>
+            )}
+            {student360?.selected_program_name && (
+              <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#008069]/15 text-[#00a884] border border-[#008069]/30">
+                <GraduationCap className="h-3 w-3 shrink-0" />
+                <span className="truncate max-w-48">{student360.selected_program_name}</span>
+              </div>
+            )}
             {contact.is_spam && (
               <span className="mt-1.5 inline-flex items-center rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide">
                 Spam / Blocked

@@ -9,7 +9,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X } from "lucide-react";
+import { Search, ChevronDown, X, Flame } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -26,13 +26,8 @@ interface ConversationListProps {
   activeConversationId: string | null;
   onSelect: (conversation: Conversation) => void;
   conversations: Conversation[];
-  onConversationsLoaded: (conversations: Conversation[]) => void;
-  /**
-   * Increment to force the fetch effect below to refire. The parent
-   * bumps this on realtime reconnect / tab visibility → visible so the
-   * list catches up on any events sent while the WS was disconnected
-   * or the tab was throttled. Optional so existing callers keep working.
-   */
+  onConversationsLoaded: (conversations: Conversation[], hotConvIds?: Set<string>) => void;
+  initialFilter?: InboxFilter;
   resyncToken?: number;
 }
 
@@ -42,21 +37,21 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-muted-foreground",
 };
 
-
-
-type InboxFilter = ConversationStatus | "all" | "unread";
+type InboxFilter = ConversationStatus | "all" | "unread" | "hot";
 
 export function ConversationList({
   activeConversationId,
   onSelect,
   conversations,
   onConversationsLoaded,
+  initialFilter,
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
+    { label: "🔥 Hot Leads", value: "hot" },
     { label: t("filterUnread"), value: "unread" },
     { label: t("filterOpen"), value: "open" },
     { label: t("filterPending"), value: "pending" },
@@ -64,8 +59,15 @@ export function ConversationList({
   ], [t]);
 
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<InboxFilter>("all");
+  const [filter, setFilter] = useState<InboxFilter>(initialFilter ?? "all");
+  const [hotPhones, setHotPhones] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+
+  // Sync initialFilter prop if it changes
+  useEffect(() => {
+    if (initialFilter) setFilter(initialFilter);
+  }, [initialFilter]);
+
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
   // Broadcast audience filtering. Company is an exact match on the field.
@@ -73,18 +75,6 @@ export function ConversationList({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
 
-  // Keep the latest callback in a ref so the fetch effect below can
-  // have a stable, empty-dep identity. Previously the fetch useCallback
-  // depended on `onConversationsLoaded`, which depends on the parent's
-  // `deepLinkConvId` — so every URL change (including one the parent
-  // triggered via router.replace after a click) caused a fresh
-  // conversations fetch. That extra refetch was the trigger for the
-  // deep-link auto-select running a second time and wiping the active
-  // thread's messages.
-  // Mutation lives in an effect (not render) per React 19's refs rule;
-  // the fetch runs once on mount so it's fine to read the slightly
-  // older value — the very next render updates the ref for any
-  // subsequent async completion.
   const onConversationsLoadedRef = useRef(onConversationsLoaded);
   useEffect(() => {
     onConversationsLoadedRef.current = onConversationsLoaded;
@@ -111,16 +101,49 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current(normalizeConversations(data ?? []));
+      // Fetch hot leads from itechskill_student_360
+      const phones = Array.from(
+        new Set(
+          (data ?? [])
+            .map((c: Record<string, unknown>) => (c.contacts as Record<string, unknown>)?.phone as string)
+            .filter(Boolean)
+        )
+      );
+
+      const hotSet = new Set<string>();
+      const hotConvs = new Set<string>();
+      if (phones.length > 0) {
+        const { data: s360 } = await supabase
+          .from("itechskill_student_360")
+          .select("phone, lead_band, lead_score")
+          .in("phone", phones);
+        for (const s of s360 ?? []) {
+          if (
+            s.lead_band === "hot" ||
+            s.lead_band === "sales_ready" ||
+            (s.lead_score !== null && s.lead_score >= 70)
+          ) {
+            hotSet.add(s.phone);
+          }
+        }
+      }
+
+      setHotPhones(hotSet);
+
+      const normalized = normalizeConversations(data ?? []);
+      for (const conv of normalized) {
+        if (conv.contact?.phone && hotSet.has(conv.contact.phone)) {
+          hotConvs.add(conv.id);
+        }
+      }
+
+      onConversationsLoadedRef.current(normalized, hotConvs);
       setLoading(false);
     })();
 
     return () => {
       cancelled = true;
     };
-    // `resyncToken` is included so the parent can force a refetch when
-    // the realtime channel reconnects or the tab regains focus — catches
-    // up on any events sent while the WS was disconnected or throttled.
   }, [resyncToken]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
@@ -158,7 +181,11 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = conversations;
 
-    if (filter === "unread") {
+    if (filter === "hot") {
+      result = result.filter(
+        (c) => c.contact?.phone && hotPhones.has(c.contact.phone)
+      );
+    } else if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
@@ -185,7 +212,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, filter, search, selectedTagIds, selectedCompany, hotPhones]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -241,7 +268,7 @@ export function ConversationList({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
-              className="border-border bg-popover"
+              className="w-36 border-border bg-popover"
             >
               {FILTER_OPTIONS.map((opt) => (
                 <DropdownMenuItem
@@ -250,7 +277,7 @@ export function ConversationList({
                   className={cn(
                     "text-sm",
                     filter === opt.value
-                      ? "text-primary"
+                      ? "text-primary font-semibold"
                       : "text-popover-foreground"
                   )}
                 >
@@ -404,15 +431,19 @@ export function ConversationList({
           </div>
         ) : (
           <div className="flex flex-col">
-            {filtered.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                isActive={conv.id === activeConversationId}
-                onSelect={handleSelect}
-                t={t}
-              />
-            ))}
+            {filtered.map((conv) => {
+              const isHot = conv.contact?.phone ? hotPhones.has(conv.contact.phone) : false;
+              return (
+                <ConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  isActive={conv.id === activeConversationId}
+                  isHotLead={isHot}
+                  onSelect={handleSelect}
+                  t={t}
+                />
+              );
+            })}
           </div>
         )}
       </ScrollArea>
@@ -423,6 +454,7 @@ export function ConversationList({
 interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
+  isHotLead: boolean;
   onSelect: (conversation: Conversation) => void;
   t: ReturnType<typeof useTranslations>;
 }
@@ -430,6 +462,7 @@ interface ConversationItemProps {
 function ConversationItem({
   conversation,
   isActive,
+  isHotLead,
   onSelect,
   t,
 }: ConversationItemProps) {
@@ -456,7 +489,7 @@ function ConversationItem({
       )}
     >
       {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
         {contact?.avatar_url ? (
           <img
             src={contact.avatar_url}
@@ -466,13 +499,27 @@ function ConversationItem({
         ) : (
           initials
         )}
+        {isHotLead && (
+          <span
+            className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white shadow ring-2 ring-background"
+            title="Hot Lead"
+          >
+            🔥
+          </span>
+        )}
       </div>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-medium text-foreground flex items-center gap-1.5">
-            {displayName}
+            <span className="truncate">{displayName}</span>
+            {isHotLead && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/30 shadow-sm shrink-0">
+                <Flame className="h-3 w-3 fill-amber-400 text-amber-400" />
+                Hot
+              </span>
+            )}
             {contact?.is_spam && (
               <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-medium text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
                 Spam

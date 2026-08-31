@@ -402,8 +402,11 @@ function InboxPageInner() {
     setResyncToken((n) => n + 1);
   }, []);
 
+  const urlFilter = searchParams.get("filter");
+  const isHotFilter = urlFilter === "hot";
+
   const handleConversationsLoaded = useCallback(
-    (loaded: Conversation[]) => {
+    (loaded: Conversation[], hotConvIds?: Set<string>) => {
       setConversations(loaded);
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
@@ -416,25 +419,12 @@ function InboxPageInner() {
         loaded.length > 0
       ) {
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
-        // If the deep-linked conversation is already the active one
-        // (e.g. because the user clicked it in the list and we
-        // router.replace()'d the URL, which made the ConversationList
-        // refetch and land us back here), do NOT re-apply it. Doing so
-        // would setMessages([]) on a thread whose messages have
-        // already been loaded by MessageThread — and because
-        // conversationId didn't change, MessageThread wouldn't
-        // refetch. The thread would read "No messages yet" until a
-        // full page reload rehydrated state from scratch.
         if (activeConversation?.id === deepLinkConvId) return;
         const match = loaded.find((c) => c.id === deepLinkConvId);
         if (match) {
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
           setMessages([]);
-          // Mirror the optimistic unread reset that handleSelectConversation
-          // does — the user just deep-linked into this conv, treat that the
-          // same as a click. Leaves activeConversation.unread_count alone so
-          // the MessageThread reset effect still fires the server UPDATE.
           if (match.unread_count > 0) {
             setConversations((prev) =>
               prev.map((c) =>
@@ -443,9 +433,25 @@ function InboxPageInner() {
             );
           }
         }
+      } else if (
+        isHotFilter &&
+        !autoSelectedForDeepLinkRef.current &&
+        loaded.length > 0
+      ) {
+        // Auto-select the first hot lead conversation when landing with ?filter=hot
+        const hotMatch =
+          hotConvIds && hotConvIds.size > 0
+            ? loaded.find((c) => hotConvIds.has(c.id))
+            : loaded[0];
+        if (hotMatch && (!activeConversation || activeConversation.id !== hotMatch.id)) {
+          autoSelectedForDeepLinkRef.current = hotMatch.id;
+          setActiveConversation(hotMatch);
+          setActiveContact(hotMatch.contact ?? null);
+          setMessages([]);
+        }
       }
     },
-    [deepLinkConvId, activeConversation?.id]
+    [deepLinkConvId, isHotFilter, activeConversation]
   );
 
   const handleSelectConversation = useCallback(
@@ -660,6 +666,7 @@ function InboxPageInner() {
               onSelect={handleSelectConversation}
               conversations={conversations}
               onConversationsLoaded={handleConversationsLoaded}
+              initialFilter={isHotFilter ? "hot" : undefined}
               resyncToken={resyncToken}
             />
           </div>
