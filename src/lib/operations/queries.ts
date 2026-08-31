@@ -141,14 +141,28 @@ export interface HandoffFilters {
   overdue?: boolean;
 }
 
-function normalizeHandoffCase(raw: Record<string, unknown>): HandoffCase {
+function normalizeHandoffCase(
+  raw: Record<string, unknown>,
+  contactNameMap?: Map<string, string>,
+): HandoffCase {
   const caseId = (raw.case_id || raw.id || "") as string;
+  const phone = (raw.phone || "") as string;
   const snap = (raw.student_snapshot as Record<string, unknown> | null) || {};
+  const resolvedName =
+    (snap.contact_name as string) ||
+    (snap.full_name as string) ||
+    (snap.name as string) ||
+    contactNameMap?.get(phone) ||
+    (raw.student_name as string) ||
+    (raw.contact_name as string) ||
+    "Lead / Student";
+
   return {
     ...(raw as unknown as HandoffCase),
     case_id: caseId,
     id: caseId,
-    student_name: (snap.full_name || raw.student_name || "Lead / Student") as string,
+    phone,
+    student_name: resolvedName,
   };
 }
 
@@ -183,7 +197,23 @@ export async function loadHandoffCases(
   const { data, count, error } = await query;
   if (error) throw new Error(`loadHandoffCases: ${error.message}`);
 
-  const normalized = (data ?? []).map((item) => normalizeHandoffCase(item as Record<string, unknown>));
+  const phones = Array.from(new Set((data ?? []).map((d) => (d.phone as string)).filter(Boolean)));
+  const contactNameMap = new Map<string, string>();
+  if (phones.length > 0) {
+    const { data: s360Rows } = await db
+      .from("itechskill_student_360")
+      .select("phone, contact_name")
+      .in("phone", phones);
+    for (const r of s360Rows ?? []) {
+      if (r.phone && r.contact_name) {
+        contactNameMap.set(r.phone, r.contact_name);
+      }
+    }
+  }
+
+  const normalized = (data ?? []).map((item) =>
+    normalizeHandoffCase(item as Record<string, unknown>, contactNameMap)
+  );
 
   return buildResult(normalized, count ?? 0, p);
 }
@@ -197,7 +227,20 @@ export async function loadHandoffById(caseId: string): Promise<HandoffCase | nul
     .maybeSingle();
 
   if (error || !data) return null;
-  return normalizeHandoffCase(data as Record<string, unknown>);
+
+  const contactNameMap = new Map<string, string>();
+  if (data.phone) {
+    const { data: s360 } = await db
+      .from("itechskill_student_360")
+      .select("phone, contact_name")
+      .eq("phone", data.phone)
+      .maybeSingle();
+    if (s360?.contact_name) {
+      contactNameMap.set(data.phone, s360.contact_name);
+    }
+  }
+
+  return normalizeHandoffCase(data as Record<string, unknown>, contactNameMap);
 }
 
 // -----------------------------------------------------------
