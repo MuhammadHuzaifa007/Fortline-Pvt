@@ -101,31 +101,19 @@ export function ConversationList({
         return;
       }
 
-      // Fetch hot leads from itechskill_student_360
-      const phones = Array.from(
-        new Set(
-          (data ?? [])
-            .map((c: Record<string, unknown>) => (c.contacts as Record<string, unknown>)?.phone as string)
-            .filter(Boolean)
-        )
-      );
-
+      // Fetch hot leads from operations API
       const hotSet = new Set<string>();
       const hotConvs = new Set<string>();
-      if (phones.length > 0) {
-        const { data: s360 } = await supabase
-          .from("itechskill_student_360")
-          .select("phone, lead_band, lead_score")
-          .in("phone", phones);
-        for (const s of s360 ?? []) {
-          if (
-            s.lead_band === "hot" ||
-            s.lead_band === "sales_ready" ||
-            (s.lead_score !== null && s.lead_score >= 70)
-          ) {
-            hotSet.add(s.phone);
+      try {
+        const res = await fetch("/api/ops/hot-leads");
+        if (res.ok) {
+          const json = await res.json();
+          for (const p of json.phones ?? []) {
+            hotSet.add(p);
           }
         }
+      } catch (err) {
+        console.error("Failed to load hot lead phones:", err);
       }
 
       setHotPhones(hotSet);

@@ -689,3 +689,22 @@ export async function loadCallSummaries(
 
   return buildResult(sanitized, count ?? 0, p);
 }
+
+// -----------------------------------------------------------
+// 9. Hot Leads
+// -----------------------------------------------------------
+
+export async function loadHotLeadPhones(): Promise<string[]> {
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from("itechskill_student_360")
+    .select("phone")
+    .in("lead_band", ["hot", "sales_ready"]);
+
+  if (error) {
+    console.error("loadHotLeadPhones error:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r: { phone: string }) => r.phone).filter(Boolean);
+}

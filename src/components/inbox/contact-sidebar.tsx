@@ -105,18 +105,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     }
 
     if (contact.phone) {
-      (async () => {
-        try {
-          const { data } = await supabase
-            .from("itechskill_student_360")
-            .select("lead_band, lead_score, selected_program_name, selected_program_type, lifecycle_stage")
-            .eq("phone", contact.phone)
-            .maybeSingle();
-          setStudent360(data ?? null);
-        } catch {
-          setStudent360(null);
-        }
-      })();
+      fetch(`/api/ops/student-360?phone=${encodeURIComponent(contact.phone)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          setStudent360(data?.student ?? null);
+        })
+        .catch(() => setStudent360(null));
     } else {
       setStudent360(null);
     }
