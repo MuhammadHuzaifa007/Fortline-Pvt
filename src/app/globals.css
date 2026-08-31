@@ -228,3 +228,13 @@ html[data-theme="rose"] {
     @apply font-sans;
   }
 }
+
+/* Recharts & Tremor Chart Axis Ticks (Weekdays & Time/Value Labels) */
+.recharts-cartesian-axis-tick text,
+.recharts-text,
+.recharts-cartesian-axis-tick-value tspan,
+.recharts-cartesian-axis-tick-value {
+  fill: #006d59 !important;
+  color: #006d59 !important;
+  font-weight: 600 !important;
+}

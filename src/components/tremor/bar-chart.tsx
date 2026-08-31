@@ -693,12 +693,15 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
             <XAxis
               hide={!showXAxis}
               tick={{
+                fill: "#006d59",
+                fontSize: 12,
+                fontWeight: 600,
                 transform:
                   layout !== "vertical" ? "translate(0, 6)" : undefined,
               }}
               stroke=""
               className={cx(
-                "text-xs fill-muted-foreground",
+                "text-xs fill-[#006d59] font-semibold",
                 { "mt-4": layout !== "vertical" },
               )}
               tickLine={false}
@@ -741,9 +744,12 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
               tickLine={false}
               stroke=""
               className={cx(
-                "text-xs fill-muted-foreground",
+                "text-xs fill-[#006d59] font-semibold",
               )}
               tick={{
+                fill: "#006d59",
+                fontSize: 12,
+                fontWeight: 600,
                 transform:
                   layout !== "vertical"
                     ? "translate(-3, 0)"

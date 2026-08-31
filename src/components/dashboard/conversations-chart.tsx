@@ -220,7 +220,7 @@ function LineSvg({
                 y={y}
                 textAnchor="end"
                 dominantBaseline="middle"
-                className="fill-muted-foreground text-[10px]"
+                className="fill-[#006d59] text-[11px] font-semibold"
               >
                 {t}
               </text>
@@ -236,7 +236,7 @@ function LineSvg({
               x={xFor(i)}
               y={VB_H - 8}
               textAnchor="middle"
-              className="fill-muted-foreground text-[10px]"
+              className="fill-[#006d59] text-[11px] font-semibold"
             >
               {shortDayLabel(p.day)}
             </text>
