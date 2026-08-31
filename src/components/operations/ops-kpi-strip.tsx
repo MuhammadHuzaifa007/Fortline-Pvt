@@ -75,7 +75,7 @@ export function OpsKpiStrip() {
     {
       label: "Hot Leads",
       value: summary.hotLeads,
-      href: "/pipelines",
+      href: "/inbox",
       icon: Flame,
       color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
       highlight: summary.hotLeads > 0,
