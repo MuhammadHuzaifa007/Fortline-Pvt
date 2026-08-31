@@ -25,6 +25,8 @@ import {
   Zap,
   Pencil,
   Check,
+  Lock,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -191,10 +193,13 @@ export function MessageComposer({
   // Voice recording state. The recorder encodes Ogg/Opus in-browser
   // (opus-recorder) so there's no server-side transcode.
   const [recording, setRecording] = useState(false);
+  const [recordingLocked, setRecordingLocked] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recorderRef = useRef<import("opus-recorder").default | null>(null);
   const cancelledRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pointerStartYRef = useRef<number | null>(null);
+  const autoSendOnStopRef = useRef(false);
 
   // Viewers (read-only role) can browse the inbox but never send.
   // For solo users this is always true — single-owner accounts pass
@@ -499,53 +504,79 @@ export function MessageComposer({
       try {
         const { publicUrl, path } = await uploadAccountMedia(CHAT_MEDIA_BUCKET, file);
         removeStaged(draftRef.current?.path);
-        setDraft({ kind: "audio", mediaUrl: publicUrl, path, filename: file.name, caption: "" });
+        if (autoSendOnStopRef.current) {
+          onSendMedia({
+            kind: "audio",
+            mediaUrl: publicUrl,
+            path,
+            filename: file.name,
+            replyToId: replyTo?.id,
+          });
+          onClearReply?.();
+        } else {
+          setDraft({ kind: "audio", mediaUrl: publicUrl, path, filename: file.name, caption: "" });
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Upload failed.");
       } finally {
         setBusy(false);
       }
     },
-    [removeStaged],
+    [removeStaged, onSendMedia, replyTo?.id, onClearReply],
   );
 
-  const startRecording = useCallback(async () => {
-    if (inputsDisabled || busy || recording) return;
-    if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === "undefined") {
-      toast.error("Voice recording isn't supported in this browser.");
-      return;
-    }
-    try {
-      // Lazy-load the encoder (≈400 KB worker) only when the user records,
-      // keeping it out of the main bundle.
-      const { default: Recorder } = await import("opus-recorder");
-      const recorder = new Recorder({
-        encoderPath: OPUS_ENCODER_PATH,
-        numberOfChannels: 1,
-        encoderApplication: 2048, // VOIP — tuned for speech
-        encoderSampleRate: 48000,
-        streamPages: false, // one callback with the complete file on stop
-      });
-      cancelledRef.current = false;
-      recorder.ondataavailable = (bytes) => {
-        if (cancelledRef.current) return;
-        void finalizeRecording(bytes);
-      };
-      recorderRef.current = recorder;
-      await recorder.start();
-      setRecording(true);
-      setRecordSeconds(0);
-      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-    } catch {
-      void recorderRef.current?.stop().catch(() => {});
-      recorderRef.current = null;
-      toast.error("Microphone access denied or unavailable.");
-    }
-  }, [inputsDisabled, busy, recording, finalizeRecording]);
+  const startRecording = useCallback(
+    async (autoSend = false) => {
+      if (inputsDisabled || busy || recording) return;
+      if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === "undefined") {
+        toast.error("Voice recording isn't supported in this browser.");
+        return;
+      }
+      try {
+        // Lazy-load the encoder (≈400 KB worker) only when the user records,
+        // keeping it out of the main bundle.
+        const { default: Recorder } = await import("opus-recorder");
+        const recorder = new Recorder({
+          encoderPath: OPUS_ENCODER_PATH,
+          numberOfChannels: 1,
+          encoderApplication: 2048, // VOIP — tuned for speech
+          encoderSampleRate: 48000,
+          streamPages: false, // one callback with the complete file on stop
+        });
+        cancelledRef.current = false;
+        autoSendOnStopRef.current = autoSend;
+        recorder.ondataavailable = (bytes) => {
+          if (cancelledRef.current) return;
+          void finalizeRecording(bytes);
+        };
+        recorderRef.current = recorder;
+        await recorder.start();
+        setRecording(true);
+        setRecordingLocked(false);
+        setRecordSeconds(0);
+        timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      } catch {
+        void recorderRef.current?.stop().catch(() => {});
+        recorderRef.current = null;
+        toast.error("Microphone access denied or unavailable.");
+      }
+    },
+    [inputsDisabled, busy, recording, finalizeRecording]
+  );
 
-  const stopRecording = useCallback(() => {
+  const stopAndSendRecording = useCallback(() => {
+    autoSendOnStopRef.current = true;
     clearTimer();
     setRecording(false);
+    setRecordingLocked(false);
+    void recorderRef.current?.stop().catch(() => {});
+  }, [clearTimer]);
+
+  const stopRecording = useCallback(() => {
+    autoSendOnStopRef.current = false;
+    clearTimer();
+    setRecording(false);
+    setRecordingLocked(false);
     void recorderRef.current?.stop().catch(() => {});
   }, [clearTimer]);
 
@@ -553,8 +584,43 @@ export function MessageComposer({
     cancelledRef.current = true;
     clearTimer();
     setRecording(false);
+    setRecordingLocked(false);
     void recorderRef.current?.stop().catch(() => {});
   }, [clearTimer]);
+
+  const handleMicPointerDown = (e: React.PointerEvent) => {
+    if (inputsDisabled || busy) return;
+    pointerStartYRef.current = e.clientY;
+    void startRecording(false);
+  };
+
+  const handleMicPointerMove = (e: React.PointerEvent) => {
+    if (!recording || recordingLocked || pointerStartYRef.current === null) return;
+    const deltaY = e.clientY - pointerStartYRef.current;
+    if (deltaY < -35) {
+      // Swiped upward — lock recording
+      setRecordingLocked(true);
+      pointerStartYRef.current = null;
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      toast.info("Recording locked 🔒", { duration: 1500 });
+    }
+  };
+
+  const handleMicPointerUp = () => {
+    if (pointerStartYRef.current === null) return;
+    pointerStartYRef.current = null;
+    if (recording && !recordingLocked) {
+      if (recordSeconds >= 1) {
+        // Held and spoke for > 1s -> release to send!
+        stopAndSendRecording();
+      } else {
+        // Quick tap: lock so user can speak hands-free
+        setRecordingLocked(true);
+      }
+    }
+  };
 
   // Auto-stop at the cap so a forgotten recording can't blow the
   // upload size limit.
@@ -697,36 +763,69 @@ export function MessageComposer({
           t={t}
         />
       ) : recording ? (
-        // Recording bar — replaces the composer while the mic is live.
-        <div className="flex items-center gap-3 rounded-full border border-border/80 bg-muted/80 dark:bg-card px-4 py-2 shadow-sm">
-          <span className="flex h-3 w-3 shrink-0 animate-pulse rounded-full bg-red-500" />
-          <span className="flex-1 text-sm font-medium text-foreground">
-            {t("recording", { current: formatDuration(recordSeconds), max: formatDuration(MAX_RECORDING_SECONDS) })}
-          </span>
-          <button
-            type="button"
-            onClick={cancelRecording}
-            className="rounded-full px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-card hover:text-foreground transition-colors"
-          >
-            {t("cancel")}
-          </button>
-          <Button
-            size="sm"
-            onClick={stopRecording}
-            className="h-10 w-10 shrink-0 rounded-full bg-[#63cb77] p-0 hover:bg-[#52b865] text-white shadow-md transition-transform active:scale-95"
-            title={t("stopAndAttach")}
-          >
-            <Square className="h-4 w-4 fill-white" />
-          </Button>
+        // WhatsApp-style live & locked recording bar
+        <div className="flex items-center gap-2 sm:gap-3 rounded-[24px] border border-border/80 bg-muted/90 dark:bg-card px-3 sm:px-4 py-2 shadow-md animate-in fade-in-50 duration-200">
+          {/* Pulsing red dot + Timer */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="flex h-3 w-3 shrink-0 animate-pulse rounded-full bg-red-500 ring-4 ring-red-500/20" />
+            <span className="font-mono text-sm font-semibold text-foreground">
+              {formatDuration(recordSeconds)}
+            </span>
+          </div>
+
+          {/* Sound waves animation & status */}
+          <div className="flex-1 flex items-center justify-center gap-2 px-2 overflow-hidden">
+            <div className="flex items-center gap-0.5 h-4">
+              <span className="w-0.5 h-2 bg-red-500 animate-pulse rounded-full" />
+              <span className="w-0.5 h-4 bg-red-500 animate-pulse delay-75 rounded-full" />
+              <span className="w-0.5 h-3 bg-red-500 animate-pulse delay-150 rounded-full" />
+              <span className="w-0.5 h-5 bg-red-500 animate-pulse delay-100 rounded-full" />
+              <span className="w-0.5 h-2 bg-red-500 animate-pulse delay-200 rounded-full" />
+            </div>
+            {recordingLocked ? (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+                <Lock className="h-3 w-3" />
+                Locked
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground animate-pulse truncate">
+                ↑ Swipe up to lock
+              </span>
+            )}
+          </div>
+
+          {/* Actions: Cancel (Trash) & Send (Green Check/Send) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              size="sm"
+              variant="ghost"
+              type="button"
+              onClick={cancelRecording}
+              className="h-9 w-9 p-0 rounded-full text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+              title="Delete recording"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+
+            <Button
+              size="sm"
+              type="button"
+              onClick={stopAndSendRecording}
+              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full bg-[#008069] hover:bg-[#00a884] text-white p-0 shadow-md transition-transform active:scale-95"
+              title="Send voice note"
+            >
+              <Send className="h-5 w-5 ml-0.5" />
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="flex items-end gap-1 sm:gap-2">
+        <div className="flex items-end gap-1 sm:gap-1.5">
           {/* Left action 1: + (Templates, Interactive, Quick Replies) */}
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={readOnly}
               title={readOnly ? t("readOnlyTitle") : t("moreActions")}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="h-5 w-5" />
             </DropdownMenuTrigger>
@@ -760,7 +859,7 @@ export function MessageComposer({
             gateReason="send messages"
             disabled={drafting}
             title={readOnly ? undefined : t("draftWithAI")}
-            className="h-9 w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-primary transition-colors"
+            className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-primary transition-colors"
             onClick={handleDraft}
           >
             {drafting ? (
@@ -770,8 +869,58 @@ export function MessageComposer({
             )}
           </GatedButton>
 
-          {/* Center Capsule: Textarea + Attach + Camera */}
-          <div className="flex flex-1 items-center rounded-[24px] border border-border/70 bg-muted/70 dark:bg-card/90 px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-sm transition-all focus-within:border-primary/50 focus-within:bg-background min-h-[40px] sm:min-h-[44px] min-w-0">
+          {/* Left action 3 (Outside): 📎 Attach (Paperclip) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={inputsDisabled || busy}
+              title={
+                readOnly
+                  ? t("readOnlyTitle")
+                  : inputsDisabled
+                    ? undefined
+                    : t("attachMedia")
+              }
+              className="inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="h-5 w-5" />
+              )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="border-border bg-popover shadow-lg">
+              <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                <ImageIcon className="mr-2 h-4 w-4" />
+                {t("photo")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
+                <Video className="mr-2 h-4 w-4" />
+                {t("video")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
+                <FileText className="mr-2 h-4 w-4" />
+                {t("document")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Left action 4 (Outside): 📷 Camera */}
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              disabled={inputsDisabled || busy}
+              title={inputsDisabled ? undefined : t("takePhoto")}
+              className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setCameraOpen(true)}
+            >
+              <Camera className="h-[22px] w-[22px]" />
+            </Button>
+          )}
+
+          {/* Center: Standalone Clean Textarea Message Input Box */}
+          <div className="flex flex-1 items-center rounded-[24px] border border-border/70 bg-muted/70 dark:bg-card/90 px-3 py-1.5 shadow-sm transition-all focus-within:border-primary/50 focus-within:bg-background min-h-[44px] min-w-0">
             <textarea
               ref={textareaRef}
               value={text}
@@ -792,61 +941,10 @@ export function MessageComposer({
                 (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
               )}
             />
-
-            {/* In-capsule Media Actions (Paperclip & Camera) */}
-            <div className="flex items-center gap-0.5 shrink-0 ml-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  disabled={inputsDisabled || busy}
-                  title={
-                    readOnly
-                      ? t("readOnlyTitle")
-                      : inputsDisabled
-                        ? undefined
-                        : t("attachMedia")
-                  }
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Paperclip className="h-4 w-4" />
-                  )}
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="border-border bg-popover shadow-lg">
-                  <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    {t("photo")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
-                    <Video className="mr-2 h-4 w-4" />
-                    {t("video")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    {t("document")}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {!readOnly && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  disabled={inputsDisabled || busy}
-                  title={inputsDisabled ? undefined : t("takePhoto")}
-                  className="h-8 w-8 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => setCameraOpen(true)}
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
           </div>
 
           {/* Far Right action: WhatsApp Circular FAB (Mic / Send / Save Edit) */}
-          <div className="shrink-0">
+          <div className="shrink-0 relative">
             {editingMessage ? (
               <Button
                 size="sm"
@@ -865,22 +963,30 @@ export function MessageComposer({
                 disabled={sessionExpired || sending}
                 onClick={handleSend}
                 title={t("send")}
-                className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#63cb77] hover:bg-[#52b865] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+                className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#008069] hover:bg-[#00a884] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
               >
                 <Send className="h-5 w-5 ml-0.5" />
               </GatedButton>
             ) : (
-              <GatedButton
-                size="sm"
-                canAct={!readOnly}
-                gateReason="send messages"
-                disabled={inputsDisabled || busy}
-                onClick={() => void startRecording()}
-                title={t("voiceNote")}
-                className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#63cb77] hover:bg-[#52b865] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+              <div
+                onPointerDown={handleMicPointerDown}
+                onPointerMove={handleMicPointerMove}
+                onPointerUp={handleMicPointerUp}
+                onPointerCancel={handleMicPointerUp}
+                className="relative select-none touch-none"
               >
-                <Mic className="h-5 w-5" />
-              </GatedButton>
+                <GatedButton
+                  size="sm"
+                  type="button"
+                  canAct={!readOnly}
+                  gateReason="send messages"
+                  disabled={inputsDisabled || busy}
+                  title={t("voiceNote")}
+                  className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#008069] hover:bg-[#00a884] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+                >
+                  <Mic className="h-5 w-5" />
+                </GatedButton>
+              </div>
             )}
           </div>
         </div>
