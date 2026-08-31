@@ -720,7 +720,7 @@ export function MessageComposer({
           </Button>
         </div>
       ) : (
-        <div className="flex items-end gap-1.5 sm:gap-2">
+        <div className="flex items-end gap-1 sm:gap-2">
           {/* Left action 1: + (Templates, Interactive, Quick Replies) */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -770,8 +770,8 @@ export function MessageComposer({
             )}
           </GatedButton>
 
-          {/* Center: Standalone Textarea Message Input Box */}
-          <div className="flex flex-1 items-center rounded-[24px] border border-border/70 bg-muted/70 dark:bg-card/90 px-3 py-1.5 shadow-sm transition-all focus-within:border-primary/50 focus-within:bg-background min-h-[44px]">
+          {/* Center Capsule: Textarea + Attach + Camera */}
+          <div className="flex flex-1 items-center rounded-[24px] border border-border/70 bg-muted/70 dark:bg-card/90 px-2.5 sm:px-3 py-1 sm:py-1.5 shadow-sm transition-all focus-within:border-primary/50 focus-within:bg-background min-h-[40px] sm:min-h-[44px] min-w-0">
             <textarea
               ref={textareaRef}
               value={text}
@@ -788,98 +788,101 @@ export function MessageComposer({
               rows={1}
               title={readOnly ? t("readOnlyTitle") : undefined}
               className={cn(
-                "flex-1 resize-none bg-transparent px-1 py-1 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors max-h-[96px]",
+                "flex-1 min-w-0 resize-none bg-transparent px-1 py-1 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors max-h-[96px]",
                 (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
               )}
             />
+
+            {/* In-capsule Media Actions (Paperclip & Camera) */}
+            <div className="flex items-center gap-0.5 shrink-0 ml-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={inputsDisabled || busy}
+                  title={
+                    readOnly
+                      ? t("readOnlyTitle")
+                      : inputsDisabled
+                        ? undefined
+                        : t("attachMedia")
+                  }
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Paperclip className="h-4 w-4" />
+                  )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="border-border bg-popover shadow-lg">
+                  <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                    {t("photo")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
+                    <Video className="mr-2 h-4 w-4" />
+                    {t("video")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    {t("document")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {!readOnly && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={inputsDisabled || busy}
+                  title={inputsDisabled ? undefined : t("takePhoto")}
+                  className="h-8 w-8 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setCameraOpen(true)}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Right action 1: Attach (Paperclip) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={inputsDisabled || busy}
-              title={
-                readOnly
-                  ? t("readOnlyTitle")
-                  : inputsDisabled
-                    ? undefined
-                    : t("attachMedia")
-              }
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Paperclip className="h-5 w-5" />
-              )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="border-border bg-popover shadow-lg">
-              <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
-                <ImageIcon className="mr-2 h-4 w-4" />
-                {t("photo")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
-                <Video className="mr-2 h-4 w-4" />
-                {t("video")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
-                <FileText className="mr-2 h-4 w-4" />
-                {t("document")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Right action 2: Camera */}
-          {!readOnly && (
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              disabled={inputsDisabled || busy}
-              title={inputsDisabled ? undefined : t("takePhoto")}
-              className="h-9 w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={() => setCameraOpen(true)}
-            >
-              <Camera className="h-[22px] w-[22px]" />
-            </Button>
-          )}
-
-          {/* Far Right action: WhatsApp FAB (Mic / Send / Save Edit) */}
-          {editingMessage ? (
-            <Button
-              size="sm"
-              disabled={sending || text.trim().length === 0}
-              onClick={handleSend}
-              title="Save edit"
-              className="h-11 w-11 shrink-0 rounded-full bg-[#008069] hover:bg-[#00a884] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
-            >
-              {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 stroke-[2.5]" />}
-            </Button>
-          ) : text.trim().length > 0 ? (
-            <GatedButton
-              size="sm"
-              canAct={!readOnly}
-              gateReason="send messages"
-              disabled={sessionExpired || sending}
-              onClick={handleSend}
-              title={t("send")}
-              className="h-11 w-11 shrink-0 rounded-full bg-[#63cb77] hover:bg-[#52b865] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
-            >
-              <Send className="h-5 w-5 ml-0.5" />
-            </GatedButton>
-          ) : (
-            <GatedButton
-              size="sm"
-              canAct={!readOnly}
-              gateReason="send messages"
-              disabled={inputsDisabled || busy}
-              onClick={() => void startRecording()}
-              title={t("voiceNote")}
-              className="h-11 w-11 shrink-0 rounded-full bg-[#63cb77] hover:bg-[#52b865] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
-            >
-              <Mic className="h-5 w-5" />
-            </GatedButton>
-          )}
+          {/* Far Right action: WhatsApp Circular FAB (Mic / Send / Save Edit) */}
+          <div className="shrink-0">
+            {editingMessage ? (
+              <Button
+                size="sm"
+                disabled={sending || text.trim().length === 0}
+                onClick={handleSend}
+                title="Save edit"
+                className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#008069] hover:bg-[#00a884] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+              >
+                {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 stroke-[2.5]" />}
+              </Button>
+            ) : text.trim().length > 0 ? (
+              <GatedButton
+                size="sm"
+                canAct={!readOnly}
+                gateReason="send messages"
+                disabled={sessionExpired || sending}
+                onClick={handleSend}
+                title={t("send")}
+                className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#63cb77] hover:bg-[#52b865] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+              >
+                <Send className="h-5 w-5 ml-0.5" />
+              </GatedButton>
+            ) : (
+              <GatedButton
+                size="sm"
+                canAct={!readOnly}
+                gateReason="send messages"
+                disabled={inputsDisabled || busy}
+                onClick={() => void startRecording()}
+                title={t("voiceNote")}
+                className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full bg-[#63cb77] hover:bg-[#52b865] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+              >
+                <Mic className="h-5 w-5" />
+              </GatedButton>
+            )}
+          </div>
         </div>
       )}
 
