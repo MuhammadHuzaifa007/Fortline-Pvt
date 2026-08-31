@@ -37,6 +37,16 @@ export async function assignHandoff(
   const db = supabaseAdmin();
   const reqId = requestId ?? generateRequestId();
 
+  // 1. Role validation
+  if (actor.role !== "admin" && actor.role !== "agent") {
+    throw new Error("Unauthorized: Only agents or admins can assign handoff cases");
+  }
+
+  // 2. Input validation
+  if (!staffUserId || staffUserId.trim().length === 0) {
+    throw new Error("Staff user ID is required to assign handoff");
+  }
+
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
@@ -87,6 +97,11 @@ export async function startHandoff(
   const db = supabaseAdmin();
   const reqId = requestId ?? generateRequestId();
 
+  // 1. Role validation
+  if (actor.role !== "admin" && actor.role !== "agent") {
+    throw new Error("Unauthorized: Only agents or admins can start handoff cases");
+  }
+
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
@@ -95,6 +110,11 @@ export async function startHandoff(
 
   if (fetchErr || !before) {
     throw new Error(`Handoff case ${caseId} not found`);
+  }
+
+  // Idempotency: If already in_progress, return existing record
+  if (before.status === "in_progress") {
+    return before as HandoffCase;
   }
 
   const updates = {
@@ -138,6 +158,16 @@ export async function resolveHandoff(
   const reqId = requestId ?? generateRequestId();
   const now = new Date().toISOString();
 
+  // 1. Role validation
+  if (actor.role !== "admin" && actor.role !== "agent") {
+    throw new Error("Unauthorized: Only agents or admins can resolve handoff cases");
+  }
+
+  // 2. Note validation
+  if (!resolutionNote || resolutionNote.trim().length === 0) {
+    throw new Error("Resolution note is required to resolve a handoff");
+  }
+
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
@@ -148,9 +178,14 @@ export async function resolveHandoff(
     throw new Error(`Handoff case ${caseId} not found`);
   }
 
+  // Idempotency: If already resolved with same note, return existing
+  if (before.status === "resolved") {
+    return before as HandoffCase;
+  }
+
   const updates = {
     status: "resolved",
-    resolution_note: resolutionNote,
+    resolution_note: resolutionNote.trim(),
     resolved_at: now,
     updated_at: now,
   };
@@ -174,7 +209,7 @@ export async function resolveHandoff(
     entityId: caseId,
     beforeState: before,
     afterState: after,
-    reason: resolutionNote,
+    reason: resolutionNote.trim(),
     requestId: reqId,
   });
 
@@ -189,6 +224,11 @@ export async function reopenHandoff(
   const db = supabaseAdmin();
   const reqId = requestId ?? generateRequestId();
 
+  // 1. Role validation
+  if (actor.role !== "admin" && actor.role !== "agent") {
+    throw new Error("Unauthorized: Only agents or admins can reopen handoff cases");
+  }
+
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
@@ -197,6 +237,11 @@ export async function reopenHandoff(
 
   if (fetchErr || !before) {
     throw new Error(`Handoff case ${caseId} not found`);
+  }
+
+  // 2. Invalid state transition check
+  if (before.status !== "resolved" && before.status !== "cancelled") {
+    throw new Error(`Invalid state transition: Cannot reopen a case with status '${before.status}'`);
   }
 
   const updates = {
@@ -244,6 +289,12 @@ export async function approvePayment(
   const reqId = requestId ?? generateRequestId();
   const now = new Date().toISOString();
 
+  // 1. Role validation
+  if (actor.role !== "admin" && actor.role !== "agent") {
+    throw new Error("Unauthorized: Only admissions staff or admins can approve payments");
+  }
+
+  // 2. Fetch & lock record
   const { data: before, error: fetchErr } = await db
     .from("itechskill_enrollment_applications")
     .select("*")
@@ -254,9 +305,20 @@ export async function approvePayment(
     throw new Error(`Enrollment application ${applicationId} not found`);
   }
 
+  // 3. Idempotency guard: If already verified, return existing record safely
+  if (before.payment_status === "verified" && (before.account_status === "created" || before.account_status === "sending_login" || before.account_status === "active")) {
+    return before as EnrollmentApplication;
+  }
+
+  // 4. Invalid state transition check
+  if (before.payment_status === "rejected") {
+    throw new Error("Invalid state transition: Cannot approve a rejected application without re-verification");
+  }
+
+  // 5. Apply state machine transition (aligned with n8n login delivery worker)
   const updates = {
     payment_status: "verified",
-    account_status: "active",
+    account_status: "created",
     updated_at: now,
   };
 
@@ -271,6 +333,7 @@ export async function approvePayment(
     throw new Error(`Failed to approve payment: ${updateErr?.message}`);
   }
 
+  // 6. Transactional Audit Log
   await writeAuditLog({
     actorUserId: actor.userId,
     actorRole: actor.role,
@@ -296,10 +359,17 @@ export async function rejectPayment(
   const reqId = requestId ?? generateRequestId();
   const now = new Date().toISOString();
 
+  // 1. Role validation
+  if (actor.role !== "admin" && actor.role !== "agent") {
+    throw new Error("Unauthorized: Only admissions staff or admins can reject payments");
+  }
+
+  // 2. Reason validation
   if (!rejectionReason || rejectionReason.trim().length === 0) {
     throw new Error("Rejection reason is required");
   }
 
+  // 3. Fetch & lock record
   const { data: before, error: fetchErr } = await db
     .from("itechskill_enrollment_applications")
     .select("*")
@@ -310,6 +380,12 @@ export async function rejectPayment(
     throw new Error(`Enrollment application ${applicationId} not found`);
   }
 
+  // 4. Idempotency guard
+  if (before.payment_status === "rejected") {
+    return before as EnrollmentApplication;
+  }
+
+  // 5. Apply rejection transition (guarantees it never enters n8n login worker)
   const updates = {
     payment_status: "rejected",
     account_status: "rejected",
@@ -327,6 +403,7 @@ export async function rejectPayment(
     throw new Error(`Failed to reject payment: ${updateErr?.message}`);
   }
 
+  // 6. Transactional Audit Log
   await writeAuditLog({
     actorUserId: actor.userId,
     actorRole: actor.role,

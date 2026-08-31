@@ -85,17 +85,16 @@ export async function loadOperationsSummary(): Promise<OperationsSummary> {
       .in("status", ["open", "in_progress", "waiting_staff", "waiting_student"])
       .lt("sla_due_at", now),
 
-    // Hot leads (high seriousness score in student_360)
+    // Hot leads (exact n8n parity: lead_band in ('hot', 'sales_ready'))
     db
       .from("itechskill_student_360")
-      .select("id", { count: "exact", head: true })
-      .gte("lead_score", 70)
-      .in("stage", ["hot", "sales_ready"]),
+      .select("phone", { count: "exact", head: true })
+      .in("lead_band", ["hot", "sales_ready"]),
 
     // Pending follow-up jobs
     db
       .from("itechskill_followup_jobs")
-      .select("id", { count: "exact", head: true })
+      .select("job_id", { count: "exact", head: true })
       .eq("status", "pending"),
 
     // Payments awaiting verification
