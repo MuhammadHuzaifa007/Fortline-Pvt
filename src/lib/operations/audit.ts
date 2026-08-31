@@ -41,23 +41,20 @@ export function generateRequestId(): string {
  * for ops visibility but never surfaced to the caller.
  */
 export async function writeAuditLog(entry: AuditEntry): Promise<void> {
-  try {
-    const db = supabaseAdmin();
-    const { error } = await db.from("itechskill_audit_log").insert({
-      actor_user_id: entry.actorUserId,
-      actor_role: entry.actorRole,
-      action: entry.action,
-      entity_type: entry.entityType,
-      entity_id: entry.entityId,
-      before_state: entry.beforeState ?? null,
-      after_state: entry.afterState ?? null,
-      reason: entry.reason ?? null,
-      request_id: entry.requestId ?? generateRequestId(),
-    });
-    if (error) {
-      console.error("[writeAuditLog] insert failed:", error.message);
-    }
-  } catch (err) {
-    console.error("[writeAuditLog] unexpected error:", err);
+  const db = supabaseAdmin();
+  const { error } = await db.from("itechskill_audit_log").insert({
+    actor_user_id: entry.actorUserId,
+    actor_role: entry.actorRole,
+    action: entry.action,
+    entity_type: entry.entityType,
+    entity_id: entry.entityId,
+    before_state: entry.beforeState ?? null,
+    after_state: entry.afterState ?? null,
+    reason: entry.reason ?? null,
+    request_id: entry.requestId ?? generateRequestId(),
+  });
+
+  if (error) {
+    console.error("[writeAuditLog] transactional audit record insert error:", error.message);
   }
 }

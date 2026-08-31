@@ -491,8 +491,6 @@ export async function resolveIncident(
   const updates = {
     status: "resolved",
     resolved_at: now,
-    resolved_by: actor.userId,
-    resolution_note: resolutionNote || "Resolved via CRM Operations Panel",
   };
 
   const { data: after, error: updateErr } = await db
@@ -538,15 +536,20 @@ export async function submitCatalogChange(
   const db = supabaseAdmin();
   const reqId = requestId ?? generateRequestId();
   const now = new Date().toISOString();
+  const catalogReqId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   const insertData = {
-    change_type: change.change_type,
-    title: change.title,
-    description: change.description,
-    payload: change.payload,
+    request_id: catalogReqId,
+    source_key: (change as any).source_key || "itechskill_short_course_microsoft_excel",
+    action: change.change_type === "delete" ? "delete" : "upsert",
+    proposed_document: {
+      title: change.title,
+      description: change.description,
+      payload: change.payload,
+    },
     status: "pending",
-    requester: actor.userId,
-    created_at: now,
+    requested_by: actor.userId,
+    requested_at: now,
     updated_at: now,
   };
 
@@ -560,18 +563,28 @@ export async function submitCatalogChange(
     throw new Error(`Failed to submit catalog change: ${insertErr?.message}`);
   }
 
+  const normalized = {
+    ...created,
+    id: created.request_id || created.id,
+    change_type: created.action || "upsert",
+    title: change.title,
+    description: change.description,
+    payload: change.payload,
+    requester: created.requested_by,
+  } as CatalogChangeRequest;
+
   await writeAuditLog({
     actorUserId: actor.userId,
     actorRole: actor.role,
     action: "catalog.submit_change",
     entityType: "itechskill_catalog_change_request",
-    entityId: created.id,
+    entityId: normalized.id,
     afterState: created,
     reason: change.title,
     requestId: reqId,
   });
 
-  return created as CatalogChangeRequest;
+  return normalized;
 }
 
 export async function approveCatalogChange(
@@ -587,8 +600,8 @@ export async function approveCatalogChange(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_catalog_change_requests")
     .select("*")
-    .eq("id", requestId)
-    .single();
+    .eq("request_id", requestId)
+    .maybeSingle();
 
   if (fetchErr || !before) {
     throw new Error(`Catalog change request ${requestId} not found`);
@@ -596,7 +609,7 @@ export async function approveCatalogChange(
 
   const updates = {
     status: "approved",
-    reviewer: actor.userId,
+    approved_by: actor.userId,
     review_note: reviewNote,
     reviewed_at: now,
     updated_at: now,
@@ -605,7 +618,7 @@ export async function approveCatalogChange(
   const { data: after, error: updateErr } = await db
     .from("itechskill_catalog_change_requests")
     .update(updates)
-    .eq("id", requestId)
+    .eq("request_id", requestId)
     .select()
     .single();
 
@@ -613,19 +626,26 @@ export async function approveCatalogChange(
     throw new Error(`Failed to approve catalog change: ${updateErr?.message}`);
   }
 
+  const normalized = {
+    ...after,
+    id: after.request_id || after.id,
+    change_type: after.action || "upsert",
+    reviewer: after.approved_by,
+  } as CatalogChangeRequest;
+
   await writeAuditLog({
     actorUserId: actor.userId,
     actorRole: actor.role,
     action: "catalog.approve_change",
     entityType: "itechskill_catalog_change_request",
-    entityId: requestId,
+    entityId: normalized.id,
     beforeState: before,
     afterState: after,
     reason: reviewNote,
     requestId: reqId,
   });
 
-  return after as CatalogChangeRequest;
+  return normalized;
 }
 
 export async function rejectCatalogChange(
@@ -641,8 +661,8 @@ export async function rejectCatalogChange(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_catalog_change_requests")
     .select("*")
-    .eq("id", requestId)
-    .single();
+    .eq("request_id", requestId)
+    .maybeSingle();
 
   if (fetchErr || !before) {
     throw new Error(`Catalog change request ${requestId} not found`);
@@ -650,7 +670,7 @@ export async function rejectCatalogChange(
 
   const updates = {
     status: "rejected",
-    reviewer: actor.userId,
+    rejected_by: actor.userId,
     review_note: rejectionReason,
     reviewed_at: now,
     updated_at: now,
@@ -659,7 +679,7 @@ export async function rejectCatalogChange(
   const { data: after, error: updateErr } = await db
     .from("itechskill_catalog_change_requests")
     .update(updates)
-    .eq("id", requestId)
+    .eq("request_id", requestId)
     .select()
     .single();
 
@@ -667,17 +687,24 @@ export async function rejectCatalogChange(
     throw new Error(`Failed to reject catalog change: ${updateErr?.message}`);
   }
 
+  const normalized = {
+    ...after,
+    id: after.request_id || after.id,
+    change_type: after.action || "upsert",
+    reviewer: after.rejected_by,
+  } as CatalogChangeRequest;
+
   await writeAuditLog({
     actorUserId: actor.userId,
     actorRole: actor.role,
     action: "catalog.reject_change",
     entityType: "itechskill_catalog_change_request",
-    entityId: requestId,
+    entityId: normalized.id,
     beforeState: before,
     afterState: after,
     reason: rejectionReason,
     requestId: reqId,
   });
 
-  return after as CatalogChangeRequest;
+  return normalized;
 }

@@ -15,6 +15,7 @@ export type HandoffStatus =
   | "open"
   | "in_progress"
   | "waiting_staff"
+  | "waiting_student"
   | "resolved"
   | "cancelled";
 
@@ -176,6 +177,9 @@ export type CatalogChangeStatus =
 
 export interface CatalogChangeRequest {
   id: string;
+  request_id?: string;
+  source_key?: string;
+  action?: string;
   change_type: string;
   title: string | null;
   description: string | null;

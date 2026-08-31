@@ -76,13 +76,13 @@ export async function loadOperationsSummary(): Promise<OperationsSummary> {
     db
       .from("itechskill_handoff_cases")
       .select("case_id", { count: "exact", head: true })
-      .in("status", ["open", "in_progress", "waiting_staff"]),
+      .in("status", ["open", "in_progress", "waiting_staff", "waiting_student"]),
 
     // Overdue handoffs (SLA breached)
     db
       .from("itechskill_handoff_cases")
       .select("case_id", { count: "exact", head: true })
-      .in("status", ["open", "in_progress", "waiting_staff"])
+      .in("status", ["open", "in_progress", "waiting_staff", "waiting_student"])
       .lt("sla_due_at", now),
 
     // Hot leads (high seriousness score in student_360)
@@ -374,6 +374,8 @@ export async function loadEnrollmentApplications(
   return buildResult(normalizedList, count ?? 0, p);
 }
 
+export const loadAdmissionsApplications = loadEnrollmentApplications;
+
 export async function loadApplicationById(appId: string): Promise<EnrollmentApplication | null> {
   const db = supabaseAdmin();
   const { data, error } = await db
@@ -460,6 +462,23 @@ export async function loadCatalogHealth(): Promise<{
   };
 }
 
+function normalizeCatalogChangeRequest(raw: Record<string, unknown>): CatalogChangeRequest {
+  const reqId = (raw.request_id || raw.id || "") as string;
+  const doc = (raw.proposed_document as Record<string, unknown> | null) || {};
+  return {
+    ...(raw as unknown as CatalogChangeRequest),
+    request_id: reqId,
+    id: reqId,
+    change_type: (raw.action || raw.change_type || "upsert") as string,
+    title: (doc.title || raw.title || raw.source_key || "Catalog Change Request") as string,
+    description: (doc.description || raw.description || null) as string | null,
+    payload: doc,
+    requester: (raw.requested_by || raw.requester || null) as string | null,
+    reviewer: (raw.approved_by || raw.rejected_by || raw.reviewer || null) as string | null,
+    created_at: (raw.requested_at || raw.created_at || new Date().toISOString()) as string,
+  };
+}
+
 export async function loadCatalogChangeRequests(
   pagination?: Partial<PaginationParams>,
 ): Promise<PaginatedResult<CatalogChangeRequest>> {
@@ -470,11 +489,12 @@ export async function loadCatalogChangeRequests(
   const { data, count, error } = await db
     .from("itechskill_catalog_change_requests")
     .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
+    .order("requested_at", { ascending: false })
     .range(from, to);
 
   if (error) throw new Error(`loadCatalogChangeRequests: ${error.message}`);
-  return buildResult((data ?? []) as CatalogChangeRequest[], count ?? 0, p);
+  const list = ((data ?? []) as Record<string, unknown>[]).map(normalizeCatalogChangeRequest);
+  return buildResult(list, count ?? 0, p);
 }
 
 // -----------------------------------------------------------

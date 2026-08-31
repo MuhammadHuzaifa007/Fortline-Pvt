@@ -62,7 +62,10 @@ export function AiHealthPanel() {
   }
 
   const run = data.latestRun;
-  const isHealthy = run ? run.status === "passed" && (run.pass_rate ?? 0) >= 0.95 : true;
+  const rawPassRate = run?.pass_rate ?? 1;
+  const normalizedRate = rawPassRate > 1 ? rawPassRate / 100 : rawPassRate;
+  const passRatePct = Math.round(normalizedRate * 100);
+  const isHealthy = run ? run.status === "passed" && normalizedRate >= 0.95 : true;
 
   return (
     <div className="space-y-6">
@@ -73,9 +76,19 @@ export function AiHealthPanel() {
             {isHealthy ? (
               <ShieldCheck className="h-6 w-6 text-emerald-400" />
             ) : (
-              <ShieldAlert className="h-6 w-6 text-red-400" />
+              <ShieldAlert className="h-6 w-6 text-amber-400" />
             )}
             <h2 className="text-lg font-bold text-foreground">AI Health & Regression Suite</h2>
+            <span
+              className={cn(
+                "px-2 py-0.5 text-xs font-semibold rounded-full border",
+                isHealthy
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              )}
+            >
+              {isHealthy ? "Healthy" : "Needs Attention"}
+            </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Automated production regression results, route accuracy, and fallback telemetry.
@@ -102,11 +115,11 @@ export function AiHealthPanel() {
             <span
               className={cn(
                 "text-3xl font-extrabold tracking-tight",
-                run && (run.pass_rate ?? 0) >= 0.95 ? "text-emerald-400" : "text-amber-400"
+                isHealthy ? "text-emerald-400" : "text-amber-400"
               )}
             >
               {run?.pass_rate !== null && run?.pass_rate !== undefined
-                ? `${Math.round(run.pass_rate * 100)}%`
+                ? `${passRatePct}%`
                 : "100%"}
             </span>
             <span className="text-xs text-muted-foreground font-medium">
@@ -117,9 +130,9 @@ export function AiHealthPanel() {
             <div
               className={cn(
                 "h-full rounded-full transition-all",
-                run && (run.pass_rate ?? 0) >= 0.95 ? "bg-emerald-500" : "bg-amber-500"
+                isHealthy ? "bg-emerald-500" : "bg-amber-500"
               )}
-              style={{ width: `${Math.round((run?.pass_rate ?? 1) * 100)}%` }}
+              style={{ width: `${passRatePct}%` }}
             />
           </div>
         </div>
