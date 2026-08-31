@@ -21,6 +21,7 @@ export type HandoffStatus =
 export type HandoffPriority = "low" | "normal" | "high" | "urgent";
 
 export interface HandoffCase {
+  case_id: string;
   id: string;
   phone: string;
   student_name: string | null;
@@ -51,6 +52,7 @@ export type FollowupStatus =
   | "dead_letter";
 
 export interface FollowupJob {
+  job_id: string;
   id: string;
   phone: string;
   student_name: string | null;

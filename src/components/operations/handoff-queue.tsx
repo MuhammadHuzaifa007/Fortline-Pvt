@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
+import { WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -320,10 +321,10 @@ export function HandoffQueue({ onSelectConversation }: HandoffQueueProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs h-8 gap-1"
+                      className="text-xs h-8 gap-1.5"
                       onClick={() => onSelectConversation(c.phone)}
                     >
-                      <MessageSquare className="h-3.5 w-3.5" />
+                      <WhatsAppChatsIcon className="h-3.5 w-3.5" />
                       Chat
                     </Button>
                   )}
@@ -333,7 +334,7 @@ export function HandoffQueue({ onSelectConversation }: HandoffQueueProps) {
                       variant="default"
                       size="sm"
                       className="text-xs h-8 bg-[#008069] hover:bg-[#008069]/90 text-white gap-1"
-                      onClick={() => handleAction(c.id, "start")}
+                      onClick={() => handleAction(c.case_id || c.id, "start")}
                       disabled={actionLoading}
                     >
                       <Play className="h-3 w-3" />

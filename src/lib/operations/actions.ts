@@ -40,7 +40,7 @@ export async function assignHandoff(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .single();
 
   if (fetchErr || !before) {
@@ -56,7 +56,7 @@ export async function assignHandoff(
   const { data: after, error: updateErr } = await db
     .from("itechskill_handoff_cases")
     .update(updates)
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .select()
     .single();
 
@@ -90,7 +90,7 @@ export async function startHandoff(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .single();
 
   if (fetchErr || !before) {
@@ -106,7 +106,7 @@ export async function startHandoff(
   const { data: after, error: updateErr } = await db
     .from("itechskill_handoff_cases")
     .update(updates)
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .select()
     .single();
 
@@ -141,7 +141,7 @@ export async function resolveHandoff(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .single();
 
   if (fetchErr || !before) {
@@ -152,14 +152,13 @@ export async function resolveHandoff(
     status: "resolved",
     resolution_note: resolutionNote,
     resolved_at: now,
-    resolved_by: actor.userId,
     updated_at: now,
   };
 
   const { data: after, error: updateErr } = await db
     .from("itechskill_handoff_cases")
     .update(updates)
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .select()
     .single();
 
@@ -193,7 +192,7 @@ export async function reopenHandoff(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_handoff_cases")
     .select("*")
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .single();
 
   if (fetchErr || !before) {
@@ -204,14 +203,13 @@ export async function reopenHandoff(
     status: "open",
     resolution_note: null,
     resolved_at: null,
-    resolved_by: null,
     updated_at: new Date().toISOString(),
   };
 
   const { data: after, error: updateErr } = await db
     .from("itechskill_handoff_cases")
     .update(updates)
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .select()
     .single();
 
@@ -422,7 +420,7 @@ export async function cancelFollowup(
   const { data: before, error: fetchErr } = await db
     .from("itechskill_followup_jobs")
     .select("*")
-    .eq("id", jobId)
+    .eq("job_id", jobId)
     .single();
 
   if (fetchErr || !before) {
@@ -435,15 +433,15 @@ export async function cancelFollowup(
 
   const updates = {
     status: "cancelled",
-    cancellation_reason: cancellationReason.trim(),
-    cancelled_by: actor.userId,
+    cancelled_reason: cancellationReason.trim(),
+    cancelled_at: now,
     updated_at: now,
   };
 
   const { data: after, error: updateErr } = await db
     .from("itechskill_followup_jobs")
     .update(updates)
-    .eq("id", jobId)
+    .eq("job_id", jobId)
     .select()
     .single();
 

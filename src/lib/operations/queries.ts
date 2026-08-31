@@ -75,13 +75,13 @@ export async function loadOperationsSummary(): Promise<OperationsSummary> {
     // Open handoff cases
     db
       .from("itechskill_handoff_cases")
-      .select("id", { count: "exact", head: true })
+      .select("case_id", { count: "exact", head: true })
       .in("status", ["open", "in_progress", "waiting_staff"]),
 
     // Overdue handoffs (SLA breached)
     db
       .from("itechskill_handoff_cases")
-      .select("id", { count: "exact", head: true })
+      .select("case_id", { count: "exact", head: true })
       .in("status", ["open", "in_progress", "waiting_staff"])
       .lt("sla_due_at", now),
 
@@ -101,7 +101,7 @@ export async function loadOperationsSummary(): Promise<OperationsSummary> {
     // Payments awaiting verification
     db
       .from("itechskill_enrollment_applications")
-      .select("id", { count: "exact", head: true })
+      .select("application_id", { count: "exact", head: true })
       .eq("payment_status", "verification_pending"),
 
     // Latest AI evaluation run
@@ -142,6 +142,17 @@ export interface HandoffFilters {
   overdue?: boolean;
 }
 
+function normalizeHandoffCase(raw: Record<string, unknown>): HandoffCase {
+  const caseId = (raw.case_id || raw.id || "") as string;
+  const snap = (raw.student_snapshot as Record<string, unknown> | null) || {};
+  return {
+    ...(raw as unknown as HandoffCase),
+    case_id: caseId,
+    id: caseId,
+    student_name: (snap.full_name || raw.student_name || "Lead / Student") as string,
+  };
+}
+
 export async function loadHandoffCases(
   filters?: HandoffFilters,
   pagination?: Partial<PaginationParams>,
@@ -173,7 +184,9 @@ export async function loadHandoffCases(
   const { data, count, error } = await query;
   if (error) throw new Error(`loadHandoffCases: ${error.message}`);
 
-  return buildResult((data ?? []) as HandoffCase[], count ?? 0, p);
+  const normalized = (data ?? []).map((item) => normalizeHandoffCase(item as Record<string, unknown>));
+
+  return buildResult(normalized, count ?? 0, p);
 }
 
 export async function loadHandoffById(caseId: string): Promise<HandoffCase | null> {
@@ -181,10 +194,11 @@ export async function loadHandoffById(caseId: string): Promise<HandoffCase | nul
   const { data, error } = await db
     .from("itechskill_handoff_cases")
     .select("*")
-    .eq("id", caseId)
+    .eq("case_id", caseId)
     .maybeSingle();
-  if (error) throw new Error(`loadHandoffById: ${error.message}`);
-  return (data as HandoffCase) ?? null;
+
+  if (error || !data) return null;
+  return normalizeHandoffCase(data as Record<string, unknown>);
 }
 
 // -----------------------------------------------------------
@@ -193,6 +207,19 @@ export async function loadHandoffById(caseId: string): Promise<HandoffCase | nul
 
 export interface FollowupFilters {
   status?: string | string[];
+}
+
+function normalizeFollowupJob(raw: Record<string, unknown>): FollowupJob {
+  const jobId = (raw.job_id || raw.id || "") as string;
+  return {
+    ...(raw as unknown as FollowupJob),
+    job_id: jobId,
+    id: jobId,
+    student_name: (raw.student_first_name || raw.student_name || "Lead / Student") as string,
+    program: (raw.program_name || raw.program || null) as string | null,
+    template_name: (raw.template_name || null) as string | null,
+    followup_type: (raw.job_type || raw.followup_type || "scheduled") as string,
+  };
 }
 
 export async function loadFollowupJobs(
@@ -220,7 +247,21 @@ export async function loadFollowupJobs(
   const { data, count, error } = await query;
   if (error) throw new Error(`loadFollowupJobs: ${error.message}`);
 
-  return buildResult((data ?? []) as FollowupJob[], count ?? 0, p);
+  const normalized = (data ?? []).map((item) => normalizeFollowupJob(item as Record<string, unknown>));
+
+  return buildResult(normalized, count ?? 0, p);
+}
+
+export async function loadFollowupById(jobId: string): Promise<FollowupJob | null> {
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from("itechskill_followup_jobs")
+    .select("*")
+    .eq("job_id", jobId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return normalizeFollowupJob(data as Record<string, unknown>);
 }
 
 // -----------------------------------------------------------
