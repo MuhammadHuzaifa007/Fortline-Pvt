@@ -57,14 +57,61 @@ function StatusIcon({ status }: { status: Message["status"] }) {
   }
 }
 
+function FormattedMessageText({
+  text,
+  isAgent,
+}: {
+  text: string;
+  isAgent: boolean;
+}) {
+  if (!text) return null;
+
+  // Regex to match URLs (http://, https://, or www.)
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  const parts = text.split(urlRegex);
+
+  return (
+    <span className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+      {parts.map((part, i) => {
+        if (part.match(urlRegex)) {
+          const href =
+            part.startsWith("http://") || part.startsWith("https://")
+              ? part
+              : `https://${part}`;
+          return (
+            <a
+              key={i}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                "underline underline-offset-2 font-medium transition-opacity",
+                isAgent
+                  ? "text-white underline decoration-white/60 hover:text-white/80"
+                  : "text-[#00a884] dark:text-[#00a884] underline decoration-[#00a884]/60 hover:text-[#008069]"
+              )}
+            >
+              {part}
+            </a>
+          );
+        }
+        return part;
+      })}
+    </span>
+  );
+}
+
 function MessageContent({
   message,
   t,
   onOpenMedia,
+  isAgent,
 }: {
   message: Message;
   t: ReturnType<typeof useTranslations>;
   onOpenMedia?: (messageId: string) => void;
+  isAgent: boolean;
 }) {
   // Passed to the media bubbles as a no-arg callback; `undefined` when the
   // parent wired up no viewer, which is what makes them non-clickable.
@@ -73,9 +120,10 @@ function MessageContent({
   switch (message.content_type) {
     case "text":
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
-        </p>
+        <FormattedMessageText
+          text={message.content_text ?? ""}
+          isAgent={isAgent}
+        />
       );
 
     case "image":
@@ -87,9 +135,12 @@ function MessageContent({
             <MediaUnavailable label={t("photo")} t={t} />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1">
+              <FormattedMessageText
+                text={message.content_text}
+                isAgent={isAgent}
+              />
+            </div>
           )}
         </div>
       );
@@ -103,9 +154,12 @@ function MessageContent({
             <MediaUnavailable label={t("video")} t={t} />
           )}
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1">
+              <FormattedMessageText
+                text={message.content_text}
+                isAgent={isAgent}
+              />
+            </div>
           )}
         </div>
       );
@@ -135,9 +189,12 @@ function MessageContent({
             {t("template")}
           </span>
           {message.content_text && (
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">
-              {message.content_text}
-            </p>
+            <div className="mt-1">
+              <FormattedMessageText
+                text={message.content_text}
+                isAgent={isAgent}
+              />
+            </div>
           )}
         </div>
       );
@@ -151,15 +208,6 @@ function MessageContent({
       );
 
     case "interactive": {
-      // Three cases share content_type='interactive':
-      //  - OUTBOUND with payload (composer / automation / Flow send after
-      //    migration 035): render the buttons/list as they appear on the phone.
-      //  - INBOUND tap (customer chose an option, sender_type='customer'):
-      //    no payload; show the tapped option's title with a reply affordance
-      //    so agents can tell it's a tap, not the customer typing.
-      //  - OUTBOUND with NO payload (legacy bot/Flow sends from before
-      //    migration 035 backfilled the column): show the body text plainly —
-      //    it is our own message, NOT a customer tap.
       if (message.interactive_payload) {
         return <InteractivePreview payload={message.interactive_payload} />;
       }
@@ -170,31 +218,35 @@ function MessageContent({
               <CornerDownLeft className="h-3 w-3" />
               {t("buttonReply")}
             </span>
-            <p className="whitespace-pre-wrap break-words text-sm">
-              {message.content_text || t("interactiveReply")}
-            </p>
+            <FormattedMessageText
+              text={message.content_text || t("interactiveReply")}
+              isAgent={isAgent}
+            />
           </div>
         );
       }
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || t("interactiveReply")}
-        </p>
+        <FormattedMessageText
+          text={message.content_text || t("interactiveReply")}
+          isAgent={isAgent}
+        />
       );
     }
 
     case "call":
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text}
-        </p>
+        <FormattedMessageText
+          text={message.content_text ?? ""}
+          isAgent={isAgent}
+        />
       );
 
     default:
       return (
-        <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || t("unsupported")}
-        </p>
+        <FormattedMessageText
+          text={message.content_text || t("unsupported")}
+          isAgent={isAgent}
+        />
       );
   }
 }
@@ -211,6 +263,10 @@ export function MessageBubble({
 
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const time = format(new Date(message.created_at), "HH:mm");
+  const isEdited = Boolean(
+    (message.interactive_payload as unknown as Record<string, unknown> | null)?.is_edited ||
+    (message as unknown as Record<string, unknown>).is_edited
+  );
 
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
@@ -236,17 +292,19 @@ export function MessageBubble({
             onPrimary={isAgent}
           />
         )}
-        <MessageContent message={message} t={t} onOpenMedia={onOpenMedia} />
+        <MessageContent
+          message={message}
+          t={t}
+          onOpenMedia={onOpenMedia}
+          isAgent={isAgent}
+        />
         <div
           className={cn(
             "mt-1 flex items-center gap-1",
             isAgent ? "justify-end" : "justify-start",
           )}
         >
-          {/* AI badge — only on replies the auto-reply bot generated
-              (always outbound, so it sits on the primary fill). Lets
-              agents tell an AI reply from their own / a Flow's at a
-              glance. */}
+          {/* AI badge */}
           {message.ai_generated && (
             <span
               className="inline-flex items-center gap-0.5 rounded-full bg-primary-foreground/20 px-1.5 py-px text-[9px] font-semibold uppercase leading-none tracking-wide text-primary-foreground"
@@ -256,13 +314,19 @@ export function MessageBubble({
               {t("aiBadge")}
             </span>
           )}
+          {isEdited && (
+            <span
+              className={cn(
+                "text-[9px] italic opacity-80",
+                isAgent ? "text-white/80" : "text-muted-foreground"
+              )}
+            >
+              (edited)
+            </span>
+          )}
           <span
             className={cn(
               "text-[10px]",
-              // Outbound bubbles sit on the primary fill, so the
-              // timestamp must read against that (not the neutral
-              // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
               isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
             )}
           >

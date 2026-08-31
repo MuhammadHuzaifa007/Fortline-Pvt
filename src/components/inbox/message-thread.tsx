@@ -211,6 +211,64 @@ export function MessageThread({
     }, 700);
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+
+  const handleStartEdit = useCallback((msg: Message) => {
+    setReplyTo(null);
+    setEditingMessage(msg);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    async (messageId: string, newText: string) => {
+      if (!newText.trim()) return;
+      const targetMsg = messages.find((m) => m.id === messageId);
+      if (!targetMsg) return;
+
+      const now = new Date().toISOString();
+      const updatedPayload = {
+        ...(typeof targetMsg.interactive_payload === "object" &&
+        targetMsg.interactive_payload !== null
+          ? (targetMsg.interactive_payload as unknown as Record<string, unknown>)
+          : {}),
+        is_edited: true,
+        edited_at: now,
+      };
+
+      onUpdateMessage(messageId, {
+        content_text: newText,
+        interactive_payload: updatedPayload as unknown as InteractiveMessagePayload,
+      });
+
+      setEditingMessage(null);
+
+      try {
+        const supabase = createClient();
+        const { error } = await supabase
+          .from("messages")
+          .update({
+            content_text: newText,
+            interactive_payload: updatedPayload,
+          })
+          .eq("id", messageId);
+
+        if (error) {
+          console.error("Failed to update message in database:", error);
+          toast.error("Failed to save message edit");
+        } else {
+          toast.success("Message edited successfully");
+        }
+      } catch (err) {
+        console.error("Error editing message:", err);
+        toast.error("Failed to edit message");
+      }
+    },
+    [messages, onUpdateMessage]
+  );
+
   // Which attachment the media viewer is showing. Lives here rather than in
   // the bubble so the viewer can page through every image/video in the
   // thread (issue #373). Paired with the conversation it belongs to and read
@@ -1177,6 +1235,7 @@ export function MessageThread({
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
+                        onEdit={() => handleStartEdit(msg)}
                       >
                         <MessageBubble
                           message={msg}
@@ -1227,6 +1286,9 @@ export function MessageThread({
           onOpenTemplates={handleOpenTemplates}
           replyTo={replyTo}
           onClearReply={() => setReplyTo(null)}
+          editingMessage={editingMessage}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
         />
       )}
 

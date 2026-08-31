@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus } from "lucide-react";
+import { CornerUpLeft, Copy, SmilePlus, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +20,7 @@ interface MessageActionsProps {
   message: Message;
   onReply: () => void;
   onReact: (emoji: string) => void;
+  onEdit?: () => void;
   children: ReactNode;
 }
 
@@ -32,6 +33,7 @@ export function MessageActions({
   message,
   onReply,
   onReact,
+  onEdit,
   children,
 }: MessageActionsProps) {
   const t = useTranslations("Inbox.actions");
@@ -76,6 +78,11 @@ export function MessageActions({
     setTouchOpen(false);
   };
 
+  const handleEdit = () => {
+    if (onEdit) onEdit();
+    setTouchOpen(false);
+  };
+
   // Row alignment lives here (not in MessageBubble) so the `group/actions`
   // hover region matches the bubble's content width — hovering empty space
   // in the row no longer reveals the toolbar.
@@ -88,11 +95,6 @@ export function MessageActions({
       onContextMenu={handleContextMenu}
       onBlur={() => setTouchOpen(false)}
     >
-      {/* `min-w-0` lets this flex child actually respect the 75% cap.
-       *  Default `min-width: auto` lets content (a long quote preview,
-       *  an unbroken URL) push past the cap and shove the row past
-       *  100%, which used to bleed across into the contact-sidebar
-       *  area. See issue #165. */}
       <div className="group/actions relative min-w-0 max-w-[75%]">
         {children}
       <div
@@ -133,14 +135,27 @@ export function MessageActions({
           onClick={handleReply}
           className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-muted hover:text-foreground"
           aria-label={t("reply")}
+          title="Reply"
         >
           <CornerUpLeft className="h-3.5 w-3.5" />
         </button>
+        {isAgent && message.content_type === "text" && onEdit && (
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Edit message"
+            title="Edit message"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopy}
           className="flex h-5 w-5 items-center justify-center rounded-full text-popover-foreground hover:bg-muted hover:text-foreground"
           aria-label={t("copyText")}
+          title="Copy text"
         >
           <Copy className="h-3.5 w-3.5" />
         </button>

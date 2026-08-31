@@ -23,6 +23,8 @@ import {
   Plus,
   MessageSquareDashed,
   Zap,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -54,7 +56,7 @@ import {
   blankButtonsPayload,
 } from "@/components/interactive/interactive-builder";
 import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
-import type { InteractiveMessagePayload, QuickReply } from "@/types";
+import type { InteractiveMessagePayload, Message, QuickReply } from "@/types";
 import { QuickReplyPicker } from "./quick-reply-picker";
 import { CameraModal } from "./camera-modal";
 
@@ -120,6 +122,9 @@ interface MessageComposerProps {
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
+  editingMessage?: Message | null;
+  onSaveEdit?: (messageId: string, newText: string) => Promise<void>;
+  onCancelEdit?: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -142,6 +147,9 @@ export function MessageComposer({
   onOpenTemplates,
   replyTo,
   onClearReply,
+  editingMessage,
+  onSaveEdit,
+  onCancelEdit,
 }: MessageComposerProps) {
   const t = useTranslations("Inbox.composer");
 
@@ -224,9 +232,35 @@ export function MessageComposer({
     el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
   }, []);
 
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.content_text || "");
+      requestAnimationFrame(() => {
+        adjustHeight();
+        textareaRef.current?.focus();
+      });
+    }
+  }, [editingMessage, adjustHeight]);
+
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending || sessionExpired) return;
+    if (!trimmed || sending) return;
+
+    if (editingMessage && onSaveEdit) {
+      setSending(true);
+      try {
+        await onSaveEdit(editingMessage.id, trimmed);
+        setText("");
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    if (sessionExpired) return;
 
     setSending(true);
     try {
@@ -238,7 +272,7 @@ export function MessageComposer({
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sending, sessionExpired, onSend, replyTo?.id, editingMessage, onSaveEdit]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -564,7 +598,26 @@ export function MessageComposer({
 
   return (
     <div className="border-t border-border bg-card p-3">
-      {replyTo && (
+      {editingMessage && (
+        <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/25 px-3 py-2 animate-in fade-in-50 duration-200">
+          <div className="flex items-center gap-2 overflow-hidden mr-2">
+            <Pencil className="h-4 w-4 text-amber-500 shrink-0" />
+            <div className="truncate text-xs">
+              <span className="font-semibold text-amber-500">Edit message: </span>
+              <span className="text-muted-foreground">{editingMessage.content_text}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted transition-colors shrink-0"
+            title="Cancel edit"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      {replyTo && !editingMessage && (
         <div className="mb-2">
           <ReplyQuote
             authorLabel={replyTo.authorLabel}
@@ -791,8 +844,18 @@ export function MessageComposer({
             </Button>
           )}
 
-          {/* Far Right action: WhatsApp FAB (Mic / Send) */}
-          {text.trim().length > 0 ? (
+          {/* Far Right action: WhatsApp FAB (Mic / Send / Save Edit) */}
+          {editingMessage ? (
+            <Button
+              size="sm"
+              disabled={sending || text.trim().length === 0}
+              onClick={handleSend}
+              title="Save edit"
+              className="h-11 w-11 shrink-0 rounded-full bg-[#008069] hover:bg-[#00a884] text-white p-0 shadow-md transition-transform active:scale-95 disabled:opacity-40"
+            >
+              {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5 stroke-[2.5]" />}
+            </Button>
+          ) : text.trim().length > 0 ? (
             <GatedButton
               size="sm"
               canAct={!readOnly}
