@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  GraduationCap,
 } from "lucide-react";
 import { WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
 import { Button } from "@/components/ui/button";
@@ -265,11 +266,22 @@ export function HandoffQueue({ onSelectConversation }: HandoffQueueProps) {
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-sm text-foreground">
-                      {c.student_name || "Unknown Student"}
+                      {c.student_name || "Lead / Student"}
                     </span>
                     <span className="text-xs text-muted-foreground font-mono">
                       {c.phone}
                     </span>
+                    {c.program_name && (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-[#008069]/15 text-[#00a884] border border-[#008069]/30 shadow-sm">
+                        <GraduationCap className="h-3.5 w-3.5 shrink-0 text-[#00a884]" />
+                        <span>{c.program_name}</span>
+                        {c.program_type && !c.program_name.toLowerCase().includes(c.program_type.toLowerCase()) && (
+                          <span className="text-[9px] uppercase font-bold tracking-wider opacity-80">
+                            • {c.program_type}
+                          </span>
+                        )}
+                      </span>
+                    )}
                     <span
                       className={cn(
                         "text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border",

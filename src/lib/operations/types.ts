@@ -26,6 +26,8 @@ export interface HandoffCase {
   id: string;
   phone: string;
   student_name: string | null;
+  program_name?: string | null;
+  program_type?: string | null;
   priority: HandoffPriority;
   category: string | null;
   reason: string | null;

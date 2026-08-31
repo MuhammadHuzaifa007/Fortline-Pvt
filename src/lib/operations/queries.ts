@@ -141,21 +141,53 @@ export interface HandoffFilters {
   overdue?: boolean;
 }
 
+interface StudentMeta {
+  contactName?: string;
+  programName?: string;
+  programType?: string;
+}
+
 function normalizeHandoffCase(
   raw: Record<string, unknown>,
-  contactNameMap?: Map<string, string>,
+  studentMetaMap?: Map<string, StudentMeta>,
 ): HandoffCase {
   const caseId = (raw.case_id || raw.id || "") as string;
   const phone = (raw.phone || "") as string;
   const snap = (raw.student_snapshot as Record<string, unknown> | null) || {};
+  const meta = studentMetaMap?.get(phone);
+
   const resolvedName =
     (snap.contact_name as string) ||
     (snap.full_name as string) ||
     (snap.name as string) ||
-    contactNameMap?.get(phone) ||
+    meta?.contactName ||
     (raw.student_name as string) ||
     (raw.contact_name as string) ||
     "Lead / Student";
+
+  const resolvedProgram =
+    (snap.program_name as string) ||
+    (snap.program as string) ||
+    (snap.course_name as string) ||
+    meta?.programName ||
+    (raw.program_name as string) ||
+    (raw.program as string) ||
+    null;
+
+  let resolvedType =
+    (snap.program_type as string) ||
+    (snap.course_type as string) ||
+    meta?.programType ||
+    (raw.program_type as string) ||
+    null;
+
+  if (!resolvedType && resolvedProgram) {
+    const lower = resolvedProgram.toLowerCase();
+    if (lower.includes("diploma")) resolvedType = "Diploma";
+    else if (lower.includes("short")) resolvedType = "Short Course";
+    else if (lower.includes("certification") || lower.includes("certificate")) resolvedType = "Certification";
+    else resolvedType = "Course";
+  }
 
   return {
     ...(raw as unknown as HandoffCase),
@@ -163,6 +195,8 @@ function normalizeHandoffCase(
     id: caseId,
     phone,
     student_name: resolvedName,
+    program_name: resolvedProgram,
+    program_type: resolvedType,
   };
 }
 
@@ -198,21 +232,25 @@ export async function loadHandoffCases(
   if (error) throw new Error(`loadHandoffCases: ${error.message}`);
 
   const phones = Array.from(new Set((data ?? []).map((d) => (d.phone as string)).filter(Boolean)));
-  const contactNameMap = new Map<string, string>();
+  const studentMetaMap = new Map<string, StudentMeta>();
   if (phones.length > 0) {
     const { data: s360Rows } = await db
       .from("itechskill_student_360")
-      .select("phone, contact_name")
+      .select("phone, contact_name, selected_program_name, selected_program_type")
       .in("phone", phones);
     for (const r of s360Rows ?? []) {
-      if (r.phone && r.contact_name) {
-        contactNameMap.set(r.phone, r.contact_name);
+      if (r.phone) {
+        studentMetaMap.set(r.phone, {
+          contactName: r.contact_name || undefined,
+          programName: r.selected_program_name || undefined,
+          programType: r.selected_program_type || undefined,
+        });
       }
     }
   }
 
   const normalized = (data ?? []).map((item) =>
-    normalizeHandoffCase(item as Record<string, unknown>, contactNameMap)
+    normalizeHandoffCase(item as Record<string, unknown>, studentMetaMap)
   );
 
   return buildResult(normalized, count ?? 0, p);
@@ -228,19 +266,23 @@ export async function loadHandoffById(caseId: string): Promise<HandoffCase | nul
 
   if (error || !data) return null;
 
-  const contactNameMap = new Map<string, string>();
+  const studentMetaMap = new Map<string, StudentMeta>();
   if (data.phone) {
     const { data: s360 } = await db
       .from("itechskill_student_360")
-      .select("phone, contact_name")
+      .select("phone, contact_name, selected_program_name, selected_program_type")
       .eq("phone", data.phone)
       .maybeSingle();
-    if (s360?.contact_name) {
-      contactNameMap.set(data.phone, s360.contact_name);
+    if (s360) {
+      studentMetaMap.set(data.phone, {
+        contactName: s360.contact_name || undefined,
+        programName: s360.selected_program_name || undefined,
+        programType: s360.selected_program_type || undefined,
+      });
     }
   }
 
-  return normalizeHandoffCase(data as Record<string, unknown>, contactNameMap);
+  return normalizeHandoffCase(data as Record<string, unknown>, studentMetaMap);
 }
 
 // -----------------------------------------------------------
