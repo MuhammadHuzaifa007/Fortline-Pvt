@@ -10,6 +10,7 @@
 // ============================================================
 
 import { supabaseAdmin } from "@/lib/flows/admin-client";
+import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
 import { writeAuditLog, generateRequestId } from "./audit";
 import type {
   HandoffCase,
@@ -38,8 +39,8 @@ export async function assignHandoff(
   const reqId = requestId ?? generateRequestId();
 
   // 1. Role validation
-  if (actor.role !== "admin" && actor.role !== "agent") {
-    throw new Error("Unauthorized: Only agents or admins can assign handoff cases");
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can assign handoff cases");
   }
 
   // 2. Input validation
@@ -98,8 +99,8 @@ export async function startHandoff(
   const reqId = requestId ?? generateRequestId();
 
   // 1. Role validation
-  if (actor.role !== "admin" && actor.role !== "agent") {
-    throw new Error("Unauthorized: Only agents or admins can start handoff cases");
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can start handoff cases");
   }
 
   const { data: before, error: fetchErr } = await db
@@ -159,8 +160,8 @@ export async function resolveHandoff(
   const now = new Date().toISOString();
 
   // 1. Role validation
-  if (actor.role !== "admin" && actor.role !== "agent") {
-    throw new Error("Unauthorized: Only agents or admins can resolve handoff cases");
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can resolve handoff cases");
   }
 
   // 2. Note validation
@@ -225,8 +226,8 @@ export async function reopenHandoff(
   const reqId = requestId ?? generateRequestId();
 
   // 1. Role validation
-  if (actor.role !== "admin" && actor.role !== "agent") {
-    throw new Error("Unauthorized: Only agents or admins can reopen handoff cases");
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can reopen handoff cases");
   }
 
   const { data: before, error: fetchErr } = await db
@@ -290,8 +291,8 @@ export async function approvePayment(
   const now = new Date().toISOString();
 
   // 1. Role validation
-  if (actor.role !== "admin" && actor.role !== "agent") {
-    throw new Error("Unauthorized: Only admissions staff or admins can approve payments");
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only admissions staff, admins, or owners can approve payments");
   }
 
   // 2. Fetch & lock record
@@ -360,8 +361,8 @@ export async function rejectPayment(
   const now = new Date().toISOString();
 
   // 1. Role validation
-  if (actor.role !== "admin" && actor.role !== "agent") {
-    throw new Error("Unauthorized: Only admissions staff or admins can reject payments");
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only admissions staff, admins, or owners can reject payments");
   }
 
   // 2. Reason validation
@@ -490,6 +491,11 @@ export async function cancelFollowup(
   const reqId = requestId ?? generateRequestId();
   const now = new Date().toISOString();
 
+  // 1. Role validation
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can cancel followups");
+  }
+
   if (!cancellationReason || cancellationReason.trim().length === 0) {
     throw new Error("Cancellation reason is required");
   }
@@ -555,6 +561,11 @@ export async function resolveIncident(
   const reqId = requestId ?? generateRequestId();
   const now = new Date().toISOString();
 
+  // 1. Role validation
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can resolve incidents");
+  }
+
   const { data: before, error: fetchErr } = await db
     .from("itechskill_operations_alerts")
     .select("*")
@@ -615,6 +626,11 @@ export async function submitCatalogChange(
   const now = new Date().toISOString();
   const catalogReqId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+  // 1. Role validation
+  if (!hasMinRole(actor.role as AccountRole, "agent")) {
+    throw new Error("Unauthorized: Only agents, admins, or owners can submit catalog change requests");
+  }
+
   const insertData = {
     request_id: catalogReqId,
     source_key: (change as any).source_key || "itechskill_short_course_microsoft_excel",
@@ -673,6 +689,11 @@ export async function approveCatalogChange(
   const db = supabaseAdmin();
   const reqId = reqIdParam ?? generateRequestId();
   const now = new Date().toISOString();
+
+  // 1. Role validation (Admin or Owner required)
+  if (!hasMinRole(actor.role as AccountRole, "admin")) {
+    throw new Error("Unauthorized: Only admins or owners can approve catalog changes");
+  }
 
   const { data: before, error: fetchErr } = await db
     .from("itechskill_catalog_change_requests")
@@ -734,6 +755,11 @@ export async function rejectCatalogChange(
   const db = supabaseAdmin();
   const reqId = reqIdParam ?? generateRequestId();
   const now = new Date().toISOString();
+
+  // 1. Role validation (Admin or Owner required)
+  if (!hasMinRole(actor.role as AccountRole, "admin")) {
+    throw new Error("Unauthorized: Only admins or owners can reject catalog changes");
+  }
 
   const { data: before, error: fetchErr } = await db
     .from("itechskill_catalog_change_requests")

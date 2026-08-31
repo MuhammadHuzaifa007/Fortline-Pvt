@@ -70,6 +70,10 @@ export function toErrorResponse(err: unknown): NextResponse {
   if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  if (err instanceof Error) {
+    console.error("[toErrorResponse] operational error:", err.message);
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
   console.error("[toErrorResponse] uncategorized error:", err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }
