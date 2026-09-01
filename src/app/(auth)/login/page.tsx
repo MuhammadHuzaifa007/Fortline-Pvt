@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageCircle, UsersRound, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
+import { MessageCircle, UsersRound, CheckCircle, AlertCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { WhatsAppBadgeLogo } from "@/components/icons/whatsapp-business-logo";
 
 // `useSearchParams` opts the component out of static prerendering
@@ -44,6 +44,7 @@ function LoginPageInner() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(
     queryError === "expired"
       ? "Your link has expired or is invalid. Please request a new link or sign in below."
@@ -163,15 +164,30 @@ function LoginPageInner() {
                   {t("forgotPassword")}
                 </Link>
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder={t("passwordPlaceholder")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
-              />
+              <div className="relative flex items-center">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder={t("passwordPlaceholder")}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="border-border bg-muted pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-2.5 flex items-center justify-center text-[#00a884] hover:text-[#008069] transition-colors p-1 rounded-md"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <Button
