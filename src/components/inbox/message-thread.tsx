@@ -28,6 +28,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Phone,
+  Info,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -40,6 +41,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
@@ -56,6 +64,7 @@ import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
 import { CallMessageChip } from "./call-message-chip";
 import { LogCallDialog } from "./log-call-dialog";
+import { ContactSidebar } from "./contact-sidebar";
 import { toast } from "sonner";
 
 interface ReplyDraft {
@@ -212,6 +221,7 @@ export function MessageThread({
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [mobileContactOpen, setMobileContactOpen] = useState(false);
 
   const handleStartEdit = useCallback((msg: Message) => {
     setReplyTo(null);
@@ -976,34 +986,51 @@ export function MessageThread({
     <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-2.5 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          {/* Back-to-list button — mobile only. Hidden on lg+ where the
-              conversation list is always visible next to the thread. */}
+          {/* Back-to-list button — mobile only. Hidden on md+ where the
+              conversation list is visible next to the thread. */}
           {onBack && (
             <button
               type="button"
               onClick={onBack}
               aria-label={t("backToConversations")}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-            {displayName.charAt(0).toUpperCase()}
+          
+          {/* Interactive contact header: tapping opens the mobile/tablet contact drawer */}
+          <div
+            onClick={() => setMobileContactOpen(true)}
+            className="flex items-center gap-2 sm:gap-3 min-w-0 cursor-pointer group/hdr rounded-lg py-1 px-1 -mx-1 hover:bg-muted/60 transition-colors"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setMobileContactOpen(true);
+              }
+            }}
+            title="View contact info, tags, and notes"
+          >
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground group-hover/hdr:ring-2 group-hover/hdr:ring-primary/40 transition-all">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold text-foreground flex items-center gap-1.5 group-hover/hdr:text-primary transition-colors">
+                {displayName}
+                {contact.is_spam && (
+                  <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
+                    Spam
+                  </span>
+                )}
+              </h2>
+              <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground flex items-center gap-1.5">
-              {displayName}
-              {contact.is_spam && (
-                <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
-                  Spam
-                </span>
-              )}
-            </h2>
-            <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
-          </div>
+
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
           <Badge
@@ -1018,7 +1045,18 @@ export function MessageThread({
           </Badge>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Mobile & Tablet Info button — opens the contact details Sheet drawer */}
+          <button
+            type="button"
+            onClick={() => setMobileContactOpen(true)}
+            aria-label="View Contact Details"
+            title="View Contact Details"
+            className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+
           {/* Contact-panel toggle — desktop only. The contact sidebar
               eats a chunk of horizontal width that crowds the thread on
               smaller laptops; this lets agents reclaim it when they just
@@ -1034,7 +1072,7 @@ export function MessageThread({
               title={contactPanelOpen ? t("hideContact") : t("showContact")}
               aria-pressed={contactPanelOpen}
               className={cn(
-                "hidden h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground lg:inline-flex",
+                "hidden h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground lg:inline-flex",
                 contactPanelOpen ? "text-primary" : "text-muted-foreground",
               )}
             >
@@ -1314,6 +1352,19 @@ export function MessageThread({
         onActiveIdChange={handleMediaChange}
         contactLabel={contactDisplayName}
       />
+
+      {/* Mobile & Tablet slide-out drawer for contact info, tags, notes & student 360 */}
+      <Sheet open={mobileContactOpen} onOpenChange={setMobileContactOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 border-l border-border bg-card">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Contact Details</SheetTitle>
+            <SheetDescription>Contact information, deals, and notes</SheetDescription>
+          </SheetHeader>
+          <div className="h-full pt-10 overflow-y-auto">
+            <ContactSidebar contact={contact} className="w-full h-full border-none shadow-none" />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

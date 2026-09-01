@@ -182,7 +182,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           "transition-transform duration-200 ease-out will-change-transform",
           open ? "translate-x-0" : "-translate-x-full",
           // Desktop: static, always visible — reset all the mobile framing.
-          "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
+          "lg:static lg:z-0 lg:w-60 xl:w-64 2xl:w-72 lg:translate-x-0 lg:transition-none shrink-0",
         )}
         aria-label="Primary"
       >

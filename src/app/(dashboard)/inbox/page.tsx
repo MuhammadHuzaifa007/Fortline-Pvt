@@ -598,7 +598,7 @@ function InboxPageInner() {
   );
 
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden sm:-m-6 2xl:-m-8">
       {/* Top sub-nav bar for Chats vs Handoffs */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card px-4">
         <div className="flex items-center gap-1">
@@ -651,14 +651,14 @@ function InboxPageInner() {
           <HandoffQueue onSelectConversation={handleSelectConversationByPhone} />
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Left panel: Conversation list.
               Hidden on mobile when a conversation is selected so the
-              thread can occupy the full width. Always visible on lg+. */}
+              thread can occupy the full width. Visible as 2-pane on md+ (tablet & desktop). */}
           <div
             className={cn(
-              "flex h-full flex-1 lg:flex-none",
-              hasActiveConv ? "hidden lg:flex" : "flex",
+              "flex h-full flex-1 md:flex-none",
+              hasActiveConv ? "hidden md:flex" : "flex",
             )}
           >
             <ConversationList
@@ -674,8 +674,8 @@ function InboxPageInner() {
           {/* Center panel: Message thread. */}
           <div
             className={cn(
-              "flex h-full min-w-0 flex-1 lg:flex",
-              hasActiveConv ? "flex" : "hidden lg:flex",
+              "flex h-full min-w-0 flex-1 md:flex",
+              hasActiveConv ? "flex" : "hidden md:flex",
             )}
           >
             <MessageThread
@@ -695,9 +695,9 @@ function InboxPageInner() {
             />
           </div>
 
-          {/* Right panel: Contact sidebar */}
+          {/* Right panel: Contact sidebar (Desktop & Ultrawide) */}
           {contactPanelOpen && (
-            <div className="hidden lg:block">
+            <div className="hidden lg:block h-full shrink-0">
               <ContactSidebar contact={activeContact} />
             </div>
           )}

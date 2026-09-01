@@ -88,7 +88,7 @@ function SettingsPageInner() {
   };
 
   return (
-    <div>
+    <div className="w-full max-w-[1920px] mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           {t('pageTitle')}
