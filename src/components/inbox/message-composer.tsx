@@ -199,7 +199,24 @@ export function MessageComposer({
   const cancelledRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pointerStartYRef = useRef<number | null>(null);
+  const pointerStartXRef = useRef<number | null>(null);
   const autoSendOnStopRef = useRef(false);
+
+  const recordingRef = useRef(false);
+  const recordingLockedRef = useRef(false);
+  const recordSecondsRef = useRef(0);
+
+  useEffect(() => {
+    recordingRef.current = recording;
+  }, [recording]);
+
+  useEffect(() => {
+    recordingLockedRef.current = recordingLocked;
+  }, [recordingLocked]);
+
+  useEffect(() => {
+    recordSecondsRef.current = recordSeconds;
+  }, [recordSeconds]);
 
   // Viewers (read-only role) can browse the inbox but never send.
   // For solo users this is always true — single-owner accounts pass
@@ -564,11 +581,26 @@ export function MessageComposer({
     [inputsDisabled, busy, recording, finalizeRecording]
   );
 
+  const lockRecording = useCallback(() => {
+    setRecordingLocked(true);
+    recordingLockedRef.current = true;
+    pointerStartYRef.current = null;
+    pointerStartXRef.current = null;
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+    toast.info("Recording locked 🔒 (Hands-free mode)", { duration: 1500 });
+  }, []);
+
   const stopAndSendRecording = useCallback(() => {
     autoSendOnStopRef.current = true;
     clearTimer();
     setRecording(false);
     setRecordingLocked(false);
+    recordingRef.current = false;
+    recordingLockedRef.current = false;
+    pointerStartYRef.current = null;
+    pointerStartXRef.current = null;
     void recorderRef.current?.stop().catch(() => {});
   }, [clearTimer]);
 
@@ -577,6 +609,10 @@ export function MessageComposer({
     clearTimer();
     setRecording(false);
     setRecordingLocked(false);
+    recordingRef.current = false;
+    recordingLockedRef.current = false;
+    pointerStartYRef.current = null;
+    pointerStartXRef.current = null;
     void recorderRef.current?.stop().catch(() => {});
   }, [clearTimer]);
 
@@ -585,42 +621,99 @@ export function MessageComposer({
     clearTimer();
     setRecording(false);
     setRecordingLocked(false);
+    recordingRef.current = false;
+    recordingLockedRef.current = false;
+    pointerStartYRef.current = null;
+    pointerStartXRef.current = null;
     void recorderRef.current?.stop().catch(() => {});
   }, [clearTimer]);
 
   const handleMicPointerDown = (e: React.PointerEvent) => {
     if (inputsDisabled || busy) return;
     pointerStartYRef.current = e.clientY;
+    pointerStartXRef.current = e.clientX;
     void startRecording(false);
   };
 
   const handleMicPointerMove = (e: React.PointerEvent) => {
-    if (!recording || recordingLocked || pointerStartYRef.current === null) return;
+    if (!recordingRef.current || recordingLockedRef.current || pointerStartYRef.current === null) return;
     const deltaY = e.clientY - pointerStartYRef.current;
-    if (deltaY < -35) {
+    if (deltaY < -25) {
       // Swiped upward — lock recording
-      setRecordingLocked(true);
-      pointerStartYRef.current = null;
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-      toast.info("Recording locked 🔒", { duration: 1500 });
+      lockRecording();
     }
   };
 
   const handleMicPointerUp = () => {
     if (pointerStartYRef.current === null) return;
     pointerStartYRef.current = null;
-    if (recording && !recordingLocked) {
-      if (recordSeconds >= 1) {
-        // Held and spoke for > 1s -> release to send!
+    pointerStartXRef.current = null;
+    if (recordingRef.current && !recordingLockedRef.current) {
+      if (recordSecondsRef.current >= 1) {
+        // Held and spoke for >= 1s -> release to send!
         stopAndSendRecording();
       } else {
         // Quick tap: lock so user can speak hands-free
-        setRecordingLocked(true);
+        lockRecording();
       }
     }
   };
+
+  // Global window pointer/touch tracking for swipe-up-to-lock and slide-to-cancel
+  useEffect(() => {
+    if (!recording) return;
+
+    const handleGlobalMove = (e: PointerEvent | TouchEvent) => {
+      if (recordingLockedRef.current || pointerStartYRef.current === null) return;
+      const clientY = "touches" in e ? e.touches[0]?.clientY : (e as PointerEvent).clientY;
+      const clientX = "touches" in e ? e.touches[0]?.clientX : (e as PointerEvent).clientX;
+      if (clientY === undefined) return;
+
+      const deltaY = clientY - pointerStartYRef.current;
+      const deltaX = clientX !== undefined && pointerStartXRef.current !== null ? clientX - pointerStartXRef.current : 0;
+
+      if (deltaY < -25) {
+        // Swiped upward by > 25px -> LOCK!
+        lockRecording();
+      } else if (deltaX < -70) {
+        // Swiped left by > 70px -> CANCEL!
+        cancelRecording();
+        toast.info("Recording discarded 🗑️", { duration: 1500 });
+      }
+    };
+
+    const handleGlobalUp = () => {
+      if (pointerStartYRef.current === null) return;
+      pointerStartYRef.current = null;
+      pointerStartXRef.current = null;
+
+      if (recordingLockedRef.current) return;
+
+      if (recordingRef.current) {
+        if (recordSecondsRef.current >= 1) {
+          stopAndSendRecording();
+        } else {
+          lockRecording();
+        }
+      }
+    };
+
+    window.addEventListener("pointermove", handleGlobalMove, { passive: true });
+    window.addEventListener("pointerup", handleGlobalUp);
+    window.addEventListener("pointercancel", handleGlobalUp);
+    window.addEventListener("touchmove", handleGlobalMove, { passive: true });
+    window.addEventListener("touchend", handleGlobalUp);
+    window.addEventListener("touchcancel", handleGlobalUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handleGlobalMove);
+      window.removeEventListener("pointerup", handleGlobalUp);
+      window.removeEventListener("pointercancel", handleGlobalUp);
+      window.removeEventListener("touchmove", handleGlobalMove);
+      window.removeEventListener("touchend", handleGlobalUp);
+      window.removeEventListener("touchcancel", handleGlobalUp);
+    };
+  }, [recording, lockRecording, cancelRecording, stopAndSendRecording]);
 
   // Auto-stop at the cap so a forgotten recording can't blow the
   // upload size limit.
@@ -774,8 +867,8 @@ export function MessageComposer({
           </div>
 
           {/* Sound waves animation & status */}
-          <div className="flex-1 flex items-center justify-center gap-2 px-2 overflow-hidden">
-            <div className="flex items-center gap-0.5 h-4">
+          <div className="flex-1 flex items-center justify-center gap-2 px-2 overflow-hidden select-none">
+            <div className="flex items-center gap-0.5 h-4 shrink-0">
               <span className="w-0.5 h-2 bg-red-500 animate-pulse rounded-full" />
               <span className="w-0.5 h-4 bg-red-500 animate-pulse delay-75 rounded-full" />
               <span className="w-0.5 h-3 bg-red-500 animate-pulse delay-150 rounded-full" />
@@ -783,14 +876,20 @@ export function MessageComposer({
               <span className="w-0.5 h-2 bg-red-500 animate-pulse delay-200 rounded-full" />
             </div>
             {recordingLocked ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full shadow-sm">
                 <Lock className="h-3 w-3" />
-                Locked
+                Hands-Free Locked
               </span>
             ) : (
-              <span className="text-xs text-muted-foreground animate-pulse truncate">
-                ↑ Swipe up to lock
-              </span>
+              <button
+                type="button"
+                onClick={lockRecording}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3 py-1 rounded-full transition-all active:scale-95 animate-pulse cursor-pointer shadow-sm"
+                title="Tap or swipe up to lock recording hands-free"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                <span>↑ Swipe up or Tap to Lock</span>
+              </button>
             )}
           </div>
 
