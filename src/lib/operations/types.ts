@@ -222,32 +222,38 @@ export interface CatalogVersion {
 export type EvaluationRunStatus = "running" | "passed" | "failed";
 
 export interface EvaluationRun {
-  id: string;
+  run_id?: string;
+  id?: string;
+  suite?: string;
   status: EvaluationRunStatus;
   total_cases: number;
   passed_cases: number;
   failed_cases: number;
   pass_rate: number | null;
-  model_version: string | null;
-  prompt_version: string | null;
-  workflow_version: string | null;
+  model_version?: string | null;
+  prompt_version?: string | null;
+  workflow_version?: string | null;
+  catalog_integrity_status?: string | null;
   started_at: string;
   completed_at: string | null;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface EvaluationResult {
-  id: string;
+  id: string | number;
   run_id: string;
   case_id: string | null;
-  case_name: string | null;
-  is_critical: boolean;
+  case_name?: string | null;
+  is_critical?: boolean;
   passed: boolean;
-  expected_route: string | null;
-  actual_route: string | null;
-  expected_keywords: string[] | null;
-  actual_response: string | null;
-  error: string | null;
+  expected_route?: string | null;
+  actual_route?: string | null;
+  expected_output?: Record<string, any> | null;
+  actual_output?: Record<string, any> | null;
+  failures?: Array<{ field?: string; actual?: any; expected?: any; reason?: string }> | null;
+  expected_keywords?: string[] | null;
+  actual_response?: string | null;
+  error?: string | null;
   created_at: string;
 }
 

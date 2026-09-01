@@ -610,23 +610,26 @@ export async function loadAiHealth(): Promise<AiHealthData> {
   let recentFailures: EvaluationResult[] = [];
 
   if (latestRun) {
-    const [criticalRes, failedRes] = await Promise.all([
-      db
-        .from("itechskill_evaluation_results")
-        .select("*")
-        .eq("run_id", latestRun.id)
-        .eq("is_critical", true)
-        .eq("passed", false)
-        .limit(50),
-      db
-        .from("itechskill_evaluation_results")
-        .select("*")
-        .eq("run_id", latestRun.id)
-        .eq("passed", false)
-        .limit(50),
-    ]);
-    failedCritical = (criticalRes.data ?? []) as EvaluationResult[];
-    recentFailures = (failedRes.data ?? []) as EvaluationResult[];
+    const runKey = latestRun.run_id || latestRun.id;
+    if (runKey) {
+      const [criticalRes, failedRes] = await Promise.all([
+        db
+          .from("itechskill_evaluation_results")
+          .select("*")
+          .eq("run_id", runKey)
+          .eq("is_critical", true)
+          .eq("passed", false)
+          .limit(50),
+        db
+          .from("itechskill_evaluation_results")
+          .select("*")
+          .eq("run_id", runKey)
+          .eq("passed", false)
+          .limit(50),
+      ]);
+      failedCritical = (criticalRes.data ?? []) as EvaluationResult[];
+      recentFailures = (failedRes.data ?? []) as EvaluationResult[];
+    }
   }
 
   // AI fallback and routing failure counts (last 24h)

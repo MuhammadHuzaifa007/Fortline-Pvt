@@ -213,66 +213,118 @@ export function AiHealthPanel() {
         </div>
       )}
 
-      {/* Failed Critical Cases Breakdown */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-foreground">
-              Regression Case Failures ({data.failedCritical.length + data.recentFailures.length})
-            </h3>
-          </div>
-        </div>
+      {/* Failed Cases Breakdown */}
+      {(() => {
+        // De-duplicate cases
+        const allFailures = [...(data.failedCritical || []), ...(data.recentFailures || [])];
+        const uniqueFailures = Array.from(
+          new Map(allFailures.map((item) => [item.id || item.case_id, item])).values()
+        );
 
-        {data.failedCritical.length === 0 && data.recentFailures.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-xs">
-            <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-emerald-400" />
-            <p className="font-semibold text-foreground text-sm">All Regression Cases Passed</p>
-            <p className="mt-1">All student advisor routing, fee citations, and RAG assertions match ground truth.</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {[...data.failedCritical, ...data.recentFailures].map((res, i) => (
-              <div key={res.id || `eval-case-${res.case_id || i}-${i}`} className="p-4 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-foreground">
-                      {res.case_name || `Case #${res.case_id || i + 1}`}
-                    </span>
-                    {res.is_critical && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
-                        CRITICAL
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-red-400 font-medium">Failed</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-muted/40 p-2.5 rounded border border-border text-[11px]">
-                  <div>
-                    <span className="text-muted-foreground">Expected Route: </span>
-                    <span className="font-mono text-foreground font-semibold">
-                      {res.expected_route || "N/A"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Actual Route: </span>
-                    <span className="font-mono text-red-400 font-semibold">
-                      {res.actual_route || "N/A"}
-                    </span>
-                  </div>
-                </div>
-
-                {res.error && (
-                  <p className="text-[11px] text-red-400/90 font-mono bg-red-500/10 p-2 rounded border border-red-500/20">
-                    {res.error}
-                  </p>
-                )}
+        return (
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-foreground">
+                  Regression Case Failures ({uniqueFailures.length})
+                </h3>
               </div>
-            ))}
+              <span className="text-xs text-muted-foreground">
+                Evaluates prompt routing & student query accuracy
+              </span>
+            </div>
+
+            {uniqueFailures.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-xs">
+                <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-emerald-400" />
+                <p className="font-semibold text-foreground text-sm">All Regression Cases Passed</p>
+                <p className="mt-1">All student advisor routing, fee citations, and RAG assertions match ground truth.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {uniqueFailures.map((res, i) => {
+                  const formattedTitle =
+                    res.case_name ||
+                    (res.case_id
+                      ? res.case_id
+                          .replace(/^route_/, "Route: ")
+                          .replace(/^language_/, "Language: ")
+                          .replace(/_/g, " ")
+                          .replace(/\b\w/g, (l) => l.toUpperCase())
+                      : `Case #${i + 1}`);
+
+                  return (
+                    <div key={res.id || `eval-case-${res.case_id || i}-${i}`} className="p-4 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">
+                            {formattedTitle}
+                          </span>
+                          {res.case_id && (
+                            <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                              {res.case_id}
+                            </span>
+                          )}
+                          {res.is_critical && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                              CRITICAL
+                            </span>
+                          )}
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                          Failed
+                        </span>
+                      </div>
+
+                      {/* Failures summary */}
+                      {res.failures && res.failures.length > 0 ? (
+                        <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-lg border border-border">
+                          {res.failures.map((f, fIdx) => (
+                            <div key={fIdx} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                              <span className="font-semibold text-foreground">
+                                Field <code className="text-primary font-mono">{f.field || "output"}</code>:
+                              </span>
+                              <span className="text-muted-foreground">
+                                Expected: <span className="font-mono text-emerald-400 font-medium">{JSON.stringify(f.expected ?? res.expected_route ?? "N/A")}</span>
+                              </span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className="text-muted-foreground">
+                                Got: <span className="font-mono text-red-400 font-medium">{JSON.stringify(f.actual ?? res.actual_route ?? "N/A")}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (res.expected_route || res.actual_route) ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-muted/40 p-2.5 rounded-lg border border-border text-[11px]">
+                          <div>
+                            <span className="text-muted-foreground">Expected Route: </span>
+                            <span className="font-mono text-emerald-400 font-semibold">
+                              {res.expected_route || "N/A"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Actual Route: </span>
+                            <span className="font-mono text-red-400 font-semibold">
+                              {res.actual_route || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {res.error && (
+                        <p className="text-[11px] text-red-400/90 font-mono bg-red-500/10 p-2 rounded border border-red-500/20">
+                          {res.error}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }
