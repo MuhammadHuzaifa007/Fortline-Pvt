@@ -211,7 +211,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-2.5">
             <Lock className="h-5 w-5 text-[#25D366] shrink-0" />
-            <span className="text-xs text-gray-300 font-medium">Zero Ban Risk Guarantee</span>
+            <span className="text-xs text-gray-300 font-medium">100% Official API Compliance</span>
           </div>
           <div className="flex items-center gap-2.5">
             <Users className="h-5 w-5 text-[#25D366] shrink-0" />
