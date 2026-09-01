@@ -122,9 +122,9 @@ export function PasswordForm() {
                 title={showCurrent ? 'Hide password' : 'Show password'}
               >
                 {showCurrent ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
                   <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
                 )}
               </button>
             </div>
@@ -155,9 +155,9 @@ export function PasswordForm() {
                   title={showNext ? 'Hide password' : 'Show password'}
                 >
                   {showNext ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
                     <Eye className="h-4 w-4" />
+                  ) : (
+                    <EyeOff className="h-4 w-4" />
                   )}
                 </button>
               </div>
@@ -186,9 +186,9 @@ export function PasswordForm() {
                   title={showConfirm ? 'Hide password' : 'Show password'}
                 >
                   {showConfirm ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
                     <Eye className="h-4 w-4" />
+                  ) : (
+                    <EyeOff className="h-4 w-4" />
                   )}
                 </button>
               </div>
