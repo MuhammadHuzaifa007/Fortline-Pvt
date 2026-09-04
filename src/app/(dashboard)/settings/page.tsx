@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { SettingsRail } from '@/components/settings/settings-rail';
 import { FortlineCompanyProfile } from '@/components/settings/fortline-company-profile';
 import { FortlineSalesMembersSettings } from '@/components/settings/fortline-sales-members-settings';
+import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { FortlineChannelsSettings } from '@/components/settings/fortline-channels-settings';
 import { FortlineKpiSettings } from '@/components/settings/fortline-kpi-settings';
 import { FortlineNotificationsSettings } from '@/components/settings/fortline-notifications-settings';
@@ -48,8 +49,9 @@ function SettingsPageInner() {
 
   const panel: Record<SettingsSection, ReactNode> = {
     'company-profile': <FortlineCompanyProfile />,
-    'sales-members': <FortlineSalesMembersSettings />,
+    whatsapp: <WhatsAppConfig />,
     'whatsapp-channels': <FortlineChannelsSettings />,
+    'sales-members': <FortlineSalesMembersSettings />,
     'kpi-config': <FortlineKpiSettings />,
     'notification-rules': <FortlineNotificationsSettings />,
     'security-audit': <FortlineSecurityAudit />,

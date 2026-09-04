@@ -17,8 +17,9 @@ import {
  */
 export const SETTINGS_SECTIONS = [
   'company-profile',
-  'sales-members',
+  'whatsapp',
   'whatsapp-channels',
+  'sales-members',
   'kpi-config',
   'notification-rules',
   'security-audit',
@@ -44,16 +45,22 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
     icon: Building2,
     group: 'organization',
   },
-  'sales-members': {
-    id: 'sales-members',
-    label: 'Sales Reps Directory',
-    icon: UsersRound,
+  whatsapp: {
+    id: 'whatsapp',
+    label: 'Meta WhatsApp API',
+    icon: PlugZap,
     group: 'organization',
   },
   'whatsapp-channels': {
     id: 'whatsapp-channels',
-    label: 'WhatsApp Channels',
-    icon: PlugZap,
+    label: 'Sales Channels Routing',
+    icon: UsersRound,
+    group: 'organization',
+  },
+  'sales-members': {
+    id: 'sales-members',
+    label: 'Sales Reps Directory',
+    icon: UsersRound,
     group: 'organization',
   },
   'kpi-config': {
@@ -106,7 +113,7 @@ export function resolveSection(raw: string | null): SettingsSection {
   if (!raw) return DEFAULT_SECTION;
   if (raw === 'overview' || raw === 'profile') return 'company-profile';
   if (raw === 'members') return 'sales-members';
-  if (raw === 'whatsapp') return 'whatsapp-channels';
+  if (raw === 'channels') return 'whatsapp-channels';
   if (raw === 'kpi' || raw === 'operations') return 'kpi-config';
   if (raw === 'notifications') return 'notification-rules';
   if (raw === 'security' || raw === 'api') return 'security-audit';
