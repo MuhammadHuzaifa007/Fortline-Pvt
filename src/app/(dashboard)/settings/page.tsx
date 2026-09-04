@@ -3,17 +3,20 @@
 import { Suspense, useMemo, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 import { SettingsRail } from '@/components/settings/settings-rail';
-import { FortlineCompanyProfile } from '@/components/settings/fortline-company-profile';
-import { FortlineSalesMembersSettings } from '@/components/settings/fortline-sales-members-settings';
-import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
-import { FortlineChannelsSettings } from '@/components/settings/fortline-channels-settings';
-import { FortlineKpiSettings } from '@/components/settings/fortline-kpi-settings';
-import { FortlineNotificationsSettings } from '@/components/settings/fortline-notifications-settings';
-import { FortlineSecurityAudit } from '@/components/settings/fortline-security-audit';
-import { TemplateManager } from '@/components/settings/template-manager';
+import { SettingsOverview } from '@/components/settings/settings-overview';
+import { ProfileForm } from '@/components/settings/profile-form';
+import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
+import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
+import { TemplateManager } from '@/components/settings/template-manager';
+import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
+import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
+import { DealsSettings } from '@/components/settings/deals-settings';
+import { MembersTab } from '@/components/settings/members-tab';
+import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import {
   resolveSection,
   type SettingsSection,
@@ -30,9 +33,11 @@ export default function SettingsPage() {
 function SettingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { account } = useAuth();
   const { mode } = useTheme();
 
   const section = resolveSection(searchParams.get('tab'));
+  const currency = account?.default_currency || 'PKR';
 
   const go = (next: SettingsSection) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -43,30 +48,33 @@ function SettingsPageInner() {
   const hints: Partial<Record<SettingsSection, ReactNode>> = useMemo(
     () => ({
       appearance: mode.charAt(0).toUpperCase() + mode.slice(1),
+      deals: currency,
     }),
-    [mode],
+    [mode, currency],
   );
 
   const panel: Record<SettingsSection, ReactNode> = {
-    'company-profile': <FortlineCompanyProfile />,
-    whatsapp: <WhatsAppConfig />,
-    'whatsapp-channels': <FortlineChannelsSettings />,
-    'sales-members': <FortlineSalesMembersSettings />,
-    'kpi-config': <FortlineKpiSettings />,
-    'notification-rules': <FortlineNotificationsSettings />,
-    'security-audit': <FortlineSecurityAudit />,
-    templates: <TemplateManager />,
+    overview: <SettingsOverview onSelect={go} />,
+    profile: <ProfileForm />,
+    security: <SecurityPanel />,
     appearance: <AppearancePanel />,
+    whatsapp: <WhatsAppConfig />,
+    templates: <TemplateManager />,
+    'quick-replies': <QuickRepliesManager />,
+    fields: <FieldsAndTagsPanel />,
+    deals: <DealsSettings />,
+    members: <MembersTab />,
+    api: <ApiKeysSettings />,
   };
 
   return (
     <div className="w-full max-w-[1920px] mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Executive Settings & Controls
+          Settings
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage Fortline corporate profile, 30 sales team channels, SLA thresholds, alerts, and audit trail.
+          Everything in one place — your account and your workspace. Pick a section to manage it.
         </p>
       </div>
 

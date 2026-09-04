@@ -1,104 +1,116 @@
 import {
-  Building2,
-  UsersRound,
-  PlugZap,
-  Sliders,
-  BellRing,
-  ShieldCheck,
-  FileText,
+  LayoutGrid,
+  User,
+  Shield,
   Palette,
+  Radio,
+  FileText,
+  Zap,
+  Tag,
+  DollarSign,
+  Users,
+  Key,
   type LucideIcon,
 } from 'lucide-react';
 
-/**
- * Settings information architecture for Fortline-Pvt Executive CRM.
- * Focused entirely on CEO operations, 30-member sales team oversight,
- * multi-channel WhatsApp configuration, and SLA compliance.
- */
 export const SETTINGS_SECTIONS = [
-  'company-profile',
-  'whatsapp',
-  'whatsapp-channels',
-  'sales-members',
-  'kpi-config',
-  'notification-rules',
-  'security-audit',
-  'templates',
+  'overview',
+  'profile',
+  'security',
   'appearance',
+  'whatsapp',
+  'templates',
+  'quick-replies',
+  'fields',
+  'deals',
+  'members',
+  'api',
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
-export const DEFAULT_SECTION: SettingsSection = 'company-profile';
+export const DEFAULT_SECTION: SettingsSection = 'overview';
 
 export interface SectionMeta {
   id: SettingsSection;
   label: string;
   icon: LucideIcon;
-  group: 'organization' | 'governance' | 'workspace';
+  group: 'overview' | 'account' | 'workspace';
 }
 
 export const SECTION_META: Record<SettingsSection, SectionMeta> = {
-  'company-profile': {
-    id: 'company-profile',
-    label: 'Company Profile',
-    icon: Building2,
-    group: 'organization',
+  overview: {
+    id: 'overview',
+    label: 'Overview',
+    icon: LayoutGrid,
+    group: 'overview',
   },
-  whatsapp: {
-    id: 'whatsapp',
-    label: 'Meta WhatsApp API',
-    icon: PlugZap,
-    group: 'organization',
+  profile: {
+    id: 'profile',
+    label: 'Your profile',
+    icon: User,
+    group: 'account',
   },
-  'whatsapp-channels': {
-    id: 'whatsapp-channels',
-    label: 'Sales Channels Routing',
-    icon: UsersRound,
-    group: 'organization',
-  },
-  'sales-members': {
-    id: 'sales-members',
-    label: 'Sales Reps Directory',
-    icon: UsersRound,
-    group: 'organization',
-  },
-  'kpi-config': {
-    id: 'kpi-config',
-    label: 'KPI & SLA Controls',
-    icon: Sliders,
-    group: 'governance',
-  },
-  'notification-rules': {
-    id: 'notification-rules',
-    label: 'Executive Alerts',
-    icon: BellRing,
-    group: 'governance',
-  },
-  'security-audit': {
-    id: 'security-audit',
-    label: 'Security & Audit Log',
-    icon: ShieldCheck,
-    group: 'governance',
-  },
-  templates: {
-    id: 'templates',
-    label: 'Message Templates',
-    icon: FileText,
-    group: 'workspace',
+  security: {
+    id: 'security',
+    label: 'Login & security',
+    icon: Shield,
+    group: 'account',
   },
   appearance: {
     id: 'appearance',
     label: 'Appearance',
     icon: Palette,
+    group: 'account',
+  },
+  whatsapp: {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    icon: Radio,
+    group: 'workspace',
+  },
+  templates: {
+    id: 'templates',
+    label: 'Templates',
+    icon: FileText,
+    group: 'workspace',
+  },
+  'quick-replies': {
+    id: 'quick-replies',
+    label: 'Quick replies',
+    icon: Zap,
+    group: 'workspace',
+  },
+  fields: {
+    id: 'fields',
+    label: 'Fields & tags',
+    icon: Tag,
+    group: 'workspace',
+  },
+  deals: {
+    id: 'deals',
+    label: 'Deals & currency',
+    icon: DollarSign,
+    group: 'workspace',
+  },
+  members: {
+    id: 'members',
+    label: 'Team members',
+    icon: Users,
+    group: 'workspace',
+  },
+  api: {
+    id: 'api',
+    label: 'API keys',
+    icon: Key,
     group: 'workspace',
   },
 };
 
 export const RAIL_GROUPS: { label: string; group: SectionMeta['group'] }[] = [
-  { label: 'Executive Operations', group: 'organization' },
-  { label: 'Compliance & Controls', group: 'governance' },
-  { label: 'System & Tools', group: 'workspace' },
+  { label: '', group: 'overview' },
+  { label: 'ACCOUNT', group: 'account' },
+  { label: 'WORKSPACE', group: 'workspace' },
 ];
 
 function isSection(value: string | null): value is SettingsSection {
@@ -107,16 +119,12 @@ function isSection(value: string | null): value is SettingsSection {
 
 /**
  * Resolve a raw `?tab=` value to a section.
- * Smoothly forwards legacy URLs to the corresponding Fortline executive view.
  */
 export function resolveSection(raw: string | null): SettingsSection {
   if (!raw) return DEFAULT_SECTION;
-  if (raw === 'overview' || raw === 'profile') return 'company-profile';
-  if (raw === 'members') return 'sales-members';
-  if (raw === 'channels') return 'whatsapp-channels';
-  if (raw === 'kpi' || raw === 'operations') return 'kpi-config';
-  if (raw === 'notifications') return 'notification-rules';
-  if (raw === 'security' || raw === 'api') return 'security-audit';
+  if (raw === 'company-profile') return 'profile';
+  if (raw === 'sales-members') return 'members';
+  if (raw === 'whatsapp-channels') return 'whatsapp';
   if (isSection(raw)) return raw;
   return DEFAULT_SECTION;
 }
