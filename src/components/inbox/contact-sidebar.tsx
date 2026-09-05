@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   User,
+  Users,
   Tag as TagIcon,
   DollarSign,
   StickyNote,
@@ -22,13 +23,19 @@ import {
   Briefcase,
   Shield,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
+import type { Conversation } from "@/types";
+import type { FortlineSalesMember } from "@/types/fortline";
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  conversation?: Conversation | null;
+  salesMembers?: FortlineSalesMember[];
+  onAssignSalesMember?: (memberId: string | null) => void;
   className?: string;
 }
 
@@ -46,7 +53,13 @@ function formatTalkTime(totalSeconds: number): string {
   return parts.join(" ");
 }
 
-export function ContactSidebar({ contact, className }: ContactSidebarProps) {
+export function ContactSidebar({
+  contact,
+  conversation,
+  salesMembers,
+  onAssignSalesMember,
+  className,
+}: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
   const tCalls = useTranslations("Calls");
@@ -62,6 +75,40 @@ export function ContactSidebar({ contact, className }: ContactSidebarProps) {
   } | null>(null);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+  const [assignedRepId, setAssignedRepId] = useState<string | null>(
+    conversation?.assigned_sales_member_id || contact?.assigned_sales_member_id || null
+  );
+
+  useEffect(() => {
+    setAssignedRepId(
+      conversation?.assigned_sales_member_id || contact?.assigned_sales_member_id || null
+    );
+  }, [conversation?.assigned_sales_member_id, contact?.assigned_sales_member_id]);
+
+  const handleAssignRep = async (newRepId: string | null) => {
+    setAssignedRepId(newRepId);
+    try {
+      const supabase = createClient();
+      if (conversation?.id) {
+        await supabase
+          .from("conversations")
+          .update({ assigned_sales_member_id: newRepId })
+          .eq("id", conversation.id);
+      }
+      if (contact?.id) {
+        await supabase
+          .from("contacts")
+          .update({ assigned_sales_member_id: newRepId })
+          .eq("id", contact.id);
+      }
+      onAssignSalesMember?.(newRepId);
+      const rep = salesMembers?.find((m) => m.id === newRepId);
+      toast.success(rep ? `Assigned to ${rep.name}` : "Lead Unassigned");
+    } catch (err) {
+      console.error("Failed to assign sales rep:", err);
+      toast.error("Failed to update sales rep assignment");
+    }
+  };
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -193,13 +240,25 @@ export function ContactSidebar({ contact, className }: ContactSidebarProps) {
                 <span className="capitalize">{contact.category.replace('_', ' ')}</span>
               </div>
             )}
-            {contact.assigned_sales_member && (
-              <div className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
-                <span className="font-semibold text-foreground">{contact.assigned_sales_member.name}</span>
-                <span>•</span>
-                <span>{contact.assigned_sales_member.division}</span>
-              </div>
-            )}
+            {/* Assigned Sales Representative Selector */}
+            <div className="mt-3 w-full px-2">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-center gap-1 mb-1.5">
+                <Users className="h-3 w-3 text-primary" />
+                Assigned Sales Rep
+              </label>
+              <select
+                value={assignedRepId || ""}
+                onChange={(e) => handleAssignRep(e.target.value || null)}
+                className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-center truncate font-medium"
+              >
+                <option value="">Unassigned (Direct Lead)</option>
+                {(salesMembers || []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} • {m.division}
+                  </option>
+                ))}
+              </select>
+            </div>
             {contact.is_spam && (
               <span className="mt-1.5 inline-flex items-center rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide">
                 Spam / Blocked

@@ -212,7 +212,9 @@ export function ConversationList({
       result = result.filter((c) => c.status === filter);
     }
 
-    if (selectedSalesMemberId) {
+    if (selectedSalesMemberId === "unassigned") {
+      result = result.filter((c) => !c.assigned_sales_member_id);
+    } else if (selectedSalesMemberId) {
       result = result.filter((c) => c.assigned_sales_member_id === selectedSalesMemberId);
     }
 

@@ -595,6 +595,46 @@ function InboxPageInner() {
     [activeConversation]
   );
 
+  const handleSalesMemberAssign = useCallback(
+    (memberId: string | null) => {
+      if (!activeConversation) return;
+      const conversationId = activeConversation.id;
+      const rep = salesMembers.find((m) => m.id === memberId) || null;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                assigned_sales_member_id: memberId,
+                assigned_sales_member: rep ?? undefined,
+              }
+            : c
+        )
+      );
+      setActiveConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              assigned_sales_member_id: memberId,
+              assigned_sales_member: rep ?? undefined,
+            }
+          : prev
+      );
+      if (activeContact) {
+        setActiveContact((prev) =>
+          prev
+            ? {
+                ...prev,
+                assigned_sales_member_id: memberId,
+                assigned_sales_member: rep ?? undefined,
+              }
+            : prev
+        );
+      }
+    },
+    [activeConversation, activeContact, salesMembers]
+  );
+
   // On mobile (<lg) we show a SINGLE pane — either the list or the
   // thread — rather than cramming both side-by-side. Selecting a
   // conversation slides the thread in; the thread's back button pops
@@ -635,6 +675,7 @@ function InboxPageInner() {
               className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer max-w-[320px]"
             >
               <option value="all">All 30 Sales Lines</option>
+              <option value="unassigned">📥 Unassigned / Direct Inbound</option>
               {salesMembers.map((rep) => (
                 <option key={rep.id} value={rep.id}>
                   {rep.name} • {rep.phone_number} ({rep.division})
@@ -686,6 +727,8 @@ function InboxPageInner() {
             conversation={activeConversation}
             contact={activeContact}
             messages={messages}
+            salesMembers={salesMembers}
+            onAssignSalesMember={handleSalesMemberAssign}
             onMessagesLoaded={handleMessagesLoaded}
             onNewMessage={handleNewMessage}
             onUpdateMessage={handleUpdateMessage}
@@ -702,7 +745,12 @@ function InboxPageInner() {
         {/* Right panel: Contact sidebar (Desktop & Ultrawide) */}
         {contactPanelOpen && (
           <div className="hidden lg:block h-full shrink-0">
-            <ContactSidebar contact={activeContact} />
+            <ContactSidebar
+              contact={activeContact}
+              conversation={activeConversation}
+              salesMembers={salesMembers}
+              onAssignSalesMember={handleSalesMemberAssign}
+            />
           </div>
         )}
       </div>

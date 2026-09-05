@@ -67,6 +67,8 @@ import { LogCallDialog } from "./log-call-dialog";
 import { ContactSidebar } from "./contact-sidebar";
 import { toast } from "sonner";
 
+import type { FortlineSalesMember } from "@/types/fortline";
+
 interface ReplyDraft {
   id: string;
   authorLabel: string;
@@ -84,6 +86,8 @@ interface MessageThreadProps {
   conversation: Conversation | null;
   contact: Contact | null;
   messages: Message[];
+  salesMembers?: FortlineSalesMember[];
+  onAssignSalesMember?: (memberId: string | null) => void;
   onMessagesLoaded: (messages: Message[]) => void;
   onNewMessage: (message: Message) => void;
   onUpdateMessage: (id: string, updates: Partial<Message>) => void;
@@ -172,6 +176,8 @@ export function MessageThread({
   conversation,
   contact,
   messages,
+  salesMembers,
+  onAssignSalesMember,
   onMessagesLoaded,
   onNewMessage,
   onUpdateMessage,
@@ -1374,7 +1380,13 @@ export function MessageThread({
             <SheetDescription>Contact information, deals, and notes</SheetDescription>
           </SheetHeader>
           <div className="h-full pt-10 overflow-y-auto">
-            <ContactSidebar contact={contact} className="w-full h-full border-none shadow-none" />
+            <ContactSidebar
+              contact={contact}
+              conversation={conversation}
+              salesMembers={salesMembers}
+              onAssignSalesMember={onAssignSalesMember}
+              className="w-full h-full border-none shadow-none"
+            />
           </div>
         </SheetContent>
       </Sheet>
