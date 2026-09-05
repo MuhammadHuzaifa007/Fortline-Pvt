@@ -225,9 +225,7 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
     expect(messageInserts).toHaveLength(1)
     expect(messageInserts[0]).toMatchObject({
       conversation_id: 'conv-new',
-      content_type: 'template',
-      template_name: 'order_update',
-      sender_type: 'agent',
+      sender_type: 'user',
     })
   })
 

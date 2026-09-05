@@ -652,28 +652,24 @@ async function processMessage(
   // Determine whether this is the contact's very first inbound message
   // BEFORE we insert, so the count is accurate. Covers the case where
   // the contact row already exists (manual add / CSV import) but they've
-  // never messaged us before — which new_contact_created wouldn't catch.
+  // Check count of prior contact messages
   const { count: priorCustomerMsgCount } = await supabaseAdmin()
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conversation.id)
-    .eq('sender_type', 'customer')
+    .in('sender_type', ['contact', 'customer'])
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
+  const resolvedContent = contentText || (message.type ? `[${message.type}]` : '')
   const { error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
-    sender_type: 'customer',
-    content_type: contentType,
-    content_text: contentText,
+    sender_type: 'contact',
+    content: resolvedContent,
     media_url: mediaUrl,
+    media_type: mediaType || message.type || null,
     message_id: message.id,
     status: 'delivered',
     created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-    reply_to_message_id: replyToInternalId,
-    // Only populated for content_type='interactive'. Migration 010 added
-    // the column; null for every other content_type so existing inserts
-    // behave identically.
-    interactive_reply_id: interactiveReplyId,
     channel_phone_number_id: phoneNumberId || null,
     sales_member_id: salesMemberId || null,
   })
@@ -685,9 +681,8 @@ async function processMessage(
 
   // Update conversation
   const convUpdates: Record<string, unknown> = {
-    last_message_text: contentText || `[${message.type}]`,
     last_message_at: new Date().toISOString(),
-    last_inbound_at: new Date().toISOString(),
+    last_message_preview: resolvedContent ? resolvedContent.slice(0, 100) : '',
     is_unanswered: true,
     unread_count: (conversation.unread_count || 0) + 1,
     updated_at: new Date().toISOString(),
@@ -1018,8 +1013,8 @@ async function findOrCreateContact(
     if (salesMemberId && !existingContact.assigned_sales_member_id) {
       updates.assigned_sales_member_id = salesMemberId
     }
-    if (phoneNumberId && !existingContact.channel_phone_number_id) {
-      updates.channel_phone_number_id = phoneNumberId
+    if (phoneNumberId && !existingContact.channel_id) {
+      updates.channel_id = phoneNumberId
     }
     if (Object.keys(updates).length > 1) {
       await supabaseAdmin()
@@ -1038,7 +1033,7 @@ async function findOrCreateContact(
     name: name || phone,
   }
   if (salesMemberId) insertPayload.assigned_sales_member_id = salesMemberId
-  if (phoneNumberId) insertPayload.channel_phone_number_id = phoneNumberId
+  if (phoneNumberId) insertPayload.channel_id = phoneNumberId
 
   const { data: newContact, error: createError } = await supabaseAdmin()
     .from('contacts')
@@ -1087,8 +1082,10 @@ async function findOrCreateConversation(
     account_id: accountId,
     user_id: configOwnerUserId,
     contact_id: contactId,
+    status: 'open',
     is_unanswered: true,
-    last_inbound_at: new Date().toISOString(),
+    unread_count: 1,
+    last_message_at: new Date().toISOString(),
   }
   if (salesMemberId) convInsert.assigned_sales_member_id = salesMemberId
   if (phoneNumberId) convInsert.channel_phone_number_id = phoneNumberId

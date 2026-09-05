@@ -117,11 +117,17 @@ function MessageContent({
   // parent wired up no viewer, which is what makes them non-clickable.
   const openMedia = onOpenMedia ? () => onOpenMedia(message.id) : undefined;
 
-  switch (message.content_type) {
+  const effectiveText =
+    message.content_text || (message as any).content || "";
+  const effectiveType =
+    message.content_type ||
+    (message.media_url ? ((message as any).media_type || "image") : "text");
+
+  switch (effectiveType) {
     case "text":
       return (
         <FormattedMessageText
-          text={message.content_text ?? ""}
+          text={effectiveText}
           isAgent={isAgent}
         />
       );
@@ -134,10 +140,10 @@ function MessageContent({
           ) : (
             <MediaUnavailable label={t("photo")} t={t} />
           )}
-          {message.content_text && (
+          {effectiveText && (
             <div className="mt-1">
               <FormattedMessageText
-                text={message.content_text}
+                text={effectiveText}
                 isAgent={isAgent}
               />
             </div>
@@ -153,10 +159,10 @@ function MessageContent({
           ) : (
             <MediaUnavailable label={t("video")} t={t} />
           )}
-          {message.content_text && (
+          {effectiveText && (
             <div className="mt-1">
               <FormattedMessageText
-                text={message.content_text}
+                text={effectiveText}
                 isAgent={isAgent}
               />
             </div>
@@ -177,7 +183,7 @@ function MessageContent({
 
     case "document":
       if (!message.media_url) {
-        return <MediaUnavailable label={message.content_text || t("document")} t={t} />;
+        return <MediaUnavailable label={effectiveText || t("document")} t={t} />;
       }
       return <MediaDocumentBubble message={message} t={t} />;
 
@@ -188,10 +194,10 @@ function MessageContent({
             <LayoutTemplate className="h-3 w-3" />
             {t("template")}
           </span>
-          {message.content_text && (
+          {effectiveText && (
             <div className="mt-1">
               <FormattedMessageText
-                text={message.content_text}
+                text={effectiveText}
                 isAgent={isAgent}
               />
             </div>
@@ -203,7 +209,7 @@ function MessageContent({
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span>{message.content_text || t("locationShared")}</span>
+          <span>{effectiveText || t("locationShared")}</span>
         </div>
       );
 
@@ -211,7 +217,7 @@ function MessageContent({
       if (message.interactive_payload) {
         return <InteractivePreview payload={message.interactive_payload} />;
       }
-      if (message.sender_type === "customer") {
+      if (message.sender_type === "customer" || (message.sender_type as string) === "contact") {
         return (
           <div className="flex flex-col gap-0.5">
             <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -219,7 +225,7 @@ function MessageContent({
               {t("buttonReply")}
             </span>
             <FormattedMessageText
-              text={message.content_text || t("interactiveReply")}
+              text={effectiveText || t("interactiveReply")}
               isAgent={isAgent}
             />
           </div>
@@ -227,7 +233,7 @@ function MessageContent({
       }
       return (
         <FormattedMessageText
-          text={message.content_text || t("interactiveReply")}
+          text={effectiveText || t("interactiveReply")}
           isAgent={isAgent}
         />
       );
@@ -236,7 +242,7 @@ function MessageContent({
     case "call":
       return (
         <FormattedMessageText
-          text={message.content_text ?? ""}
+          text={effectiveText}
           isAgent={isAgent}
         />
       );
@@ -244,7 +250,7 @@ function MessageContent({
     default:
       return (
         <FormattedMessageText
-          text={message.content_text || t("unsupported")}
+          text={effectiveText || t("unsupported")}
           isAgent={isAgent}
         />
       );
@@ -261,7 +267,10 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const t = useTranslations("Inbox.bubble");
 
-  const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
+  const isAgent =
+    message.sender_type === "agent" ||
+    message.sender_type === "bot" ||
+    (message.sender_type as string) === "user";
   const time = format(new Date(message.created_at), "HH:mm");
   const isEdited = Boolean(
     (message.interactive_payload as unknown as Record<string, unknown> | null)?.is_edited ||

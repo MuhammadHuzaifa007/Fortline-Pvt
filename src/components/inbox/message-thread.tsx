@@ -322,7 +322,7 @@ export function MessageThread({
     // Find last customer message
     const lastCustomerMsg = [...messages]
       .reverse()
-      .find((m) => m.sender_type === "customer");
+      .find((m) => m.sender_type === "customer" || (m.sender_type as string) === "contact");
 
     if (!lastCustomerMsg) return { expired: true, remaining: "No customer messages" };
 
@@ -394,7 +394,20 @@ export function MessageThread({
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const normalized = (data ?? []).map((m: any) => ({
+          ...m,
+          content_text: m.content_text ?? m.content ?? "",
+          content_type:
+            m.content_type ??
+            (m.media_url ? m.media_type || "image" : "text"),
+          sender_type:
+            m.sender_type === "contact"
+              ? "customer"
+              : m.sender_type === "user"
+              ? "agent"
+              : m.sender_type,
+        }));
+        onMessagesLoadedRef.current(normalized as Message[]);
       }
 
       if (!cancelled) setLoading(false);

@@ -237,7 +237,20 @@ function InboxPageInner() {
   // Handle realtime message events
   const handleMessageEvent = useCallback(
     (event: { eventType: string; new: Message; old: Partial<Message> }) => {
-      const newMsg = event.new;
+      const rawMsg = event.new as any;
+      const newMsg: Message = {
+        ...rawMsg,
+        content_text: rawMsg.content_text ?? rawMsg.content ?? "",
+        content_type:
+          rawMsg.content_type ??
+          (rawMsg.media_url ? rawMsg.media_type || "image" : "text"),
+        sender_type:
+          rawMsg.sender_type === "contact"
+            ? "customer"
+            : rawMsg.sender_type === "user"
+            ? "agent"
+            : rawMsg.sender_type,
+      };
 
       if (event.eventType === "INSERT") {
         // Add to messages if it belongs to active conversation
@@ -267,7 +280,7 @@ function InboxPageInner() {
               c.id === newMsg.conversation_id
                 ? {
                     ...c,
-                    last_message_text: newMsg.content_text ?? "",
+                    last_message_text: newMsg.content_text ?? (newMsg as any).content ?? "",
                     last_message_at: newMsg.created_at,
                     unread_count:
                       activeConversation?.id === newMsg.conversation_id

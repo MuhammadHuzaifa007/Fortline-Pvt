@@ -456,20 +456,19 @@ export async function sendMessageToConversation(
   const interactiveBody =
     messageType === 'interactive' ? interactivePayload!.body : null;
 
+  const resolvedContent =
+    interactiveBody ?? contentText ?? (mediaUrl ? `[${messageType}]` : '');
+
   const { data: messageRecord, error: msgError } = await db
     .from('messages')
     .insert({
       conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: messageType,
-      content_text: interactiveBody ?? contentText ?? null,
+      sender_type: 'user',
+      content: resolvedContent,
       media_url: mediaUrl || null,
-      template_name: templateName || null,
-      interactive_payload:
-        messageType === 'interactive' ? interactivePayload : null,
+      media_type: isMediaKind ? messageType : null,
       message_id: waMessageId,
       status: 'sent',
-      reply_to_message_id: replyToMessageId || null,
       channel_phone_number_id: conversation.channel_phone_number_id || config.phone_number_id || null,
       sales_member_id: conversation.assigned_sales_member_id || config.sales_member_id || null,
     })
@@ -492,7 +491,7 @@ export async function sendMessageToConversation(
 
   const nowIso = new Date().toISOString();
   const convUpdate: Record<string, unknown> = {
-    last_message_text: lastMessageText,
+    last_message_preview: lastMessageText,
     last_message_at: nowIso,
     updated_at: nowIso,
     is_unanswered: false,
