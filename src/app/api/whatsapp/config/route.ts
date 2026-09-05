@@ -85,11 +85,21 @@ export async function GET() {
       )
     }
 
-    const { data: config, error: configError } = await supabase
+    let { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('phone_number_id, access_token, status')
       .eq('account_id', accountId)
       .maybeSingle()
+
+    if (configError) {
+      const res = await supabaseAdmin()
+        .from('whatsapp_config')
+        .select('phone_number_id, access_token, status')
+        .eq('account_id', accountId)
+        .maybeSingle()
+      config = res.data
+      configError = res.error
+    }
 
     if (configError) {
       console.error('Error fetching whatsapp_config:', configError)
@@ -272,15 +282,13 @@ export async function POST(request: Request) {
     // Look up any pre-existing row for this account so we know whether
     // this number is already registered with Meta — if so we can skip
     // /register when the user didn't provide a PIN this time around.
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin()
       .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id')
+      .select('id, phone_number_id')
       .eq('account_id', accountId)
       .maybeSingle()
 
-    const sameNumber =
-      existing?.phone_number_id === phone_number_id &&
-      existing?.registered_at != null
+    const sameNumber = existing?.phone_number_id === phone_number_id
 
     // Step 1: register the phone number for inbound webhooks.
     //
@@ -289,7 +297,7 @@ export async function POST(request: Request) {
     // when the same number is already registered and no PIN was
     // supplied — re-registering an already-active number with a
     // stale PIN would actually fail and undo the active subscription.
-    let registeredAt: string | null = existing?.registered_at ?? null
+    let registeredAt: string | null = null
     let registrationError: string | null = null
     // True when registration was deliberately skipped because no PIN
     // was supplied (see below). Distinct from registrationError — this
@@ -350,52 +358,72 @@ export async function POST(request: Request) {
       }
     }
 
-    // Persist everything in one shot. If /register failed we still
-    // store the credentials and the error so the UI can guide the
-    // user through a retry.
-    const baseRow = {
+    // Persist everything. Use core columns with fallback for environments
+    // where optional tracking columns haven't been migrated yet.
+    const baseRow: Record<string, unknown> = {
       phone_number_id,
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
       status: registrationError ? 'disconnected' : 'connected',
+      display_phone_number: phoneInfo?.display_phone_number || null,
+      business_name: phoneInfo?.verified_name || null,
+      updated_at: new Date().toISOString(),
+    }
+
+    const optionalFields: Record<string, unknown> = {
       connected_at: registrationError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,
       subscribed_apps_at: subscribedAppsAt ?? null,
       last_registration_error: registrationError,
-      updated_at: new Date().toISOString(),
     }
 
     if (existing) {
-      const { error: updateError } = await supabase
+      let { error: updateError } = await supabaseAdmin()
         .from('whatsapp_config')
-        .update(baseRow)
+        .update({ ...baseRow, ...optionalFields })
         .eq('account_id', accountId)
+
+      if (updateError && (updateError.code === 'PGRST204' || updateError.message?.includes('column'))) {
+        const res = await supabaseAdmin()
+          .from('whatsapp_config')
+          .update(baseRow)
+          .eq('account_id', accountId)
+        updateError = res.error
+      }
 
       if (updateError) {
         console.error('Error updating whatsapp_config:', updateError)
         return NextResponse.json(
-          { error: 'Failed to update configuration' },
+          { error: updateError.message || 'Failed to update configuration' },
           { status: 500 }
         )
       }
     } else {
-      // Insert with both columns: `account_id` is the tenancy key
-      // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
-      // up-front), `user_id` is the audit column identifying which
-      // member of the account saved the config.
-      const { error: insertError } = await supabase
+      let { error: insertError } = await supabaseAdmin()
         .from('whatsapp_config')
         .insert({
           account_id: accountId,
           user_id: user.id,
           ...baseRow,
+          ...optionalFields,
         })
+
+      if (insertError && (insertError.code === 'PGRST204' || insertError.message?.includes('column'))) {
+        const res = await supabaseAdmin()
+          .from('whatsapp_config')
+          .insert({
+            account_id: accountId,
+            user_id: user.id,
+            ...baseRow,
+          })
+        insertError = res.error
+      }
 
       if (insertError) {
         console.error('Error inserting whatsapp_config:', insertError)
         return NextResponse.json(
-          { error: 'Failed to save configuration' },
+          { error: insertError.message || 'Failed to save configuration' },
           { status: 500 }
         )
       }
@@ -459,15 +487,23 @@ export async function DELETE() {
       )
     }
 
-    const { error: deleteError } = await supabase
+    let { error: deleteError } = await supabase
       .from('whatsapp_config')
       .delete()
       .eq('account_id', accountId)
 
     if (deleteError) {
+      const res = await supabaseAdmin()
+        .from('whatsapp_config')
+        .delete()
+        .eq('account_id', accountId)
+      deleteError = res.error
+    }
+
+    if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)
       return NextResponse.json(
-        { error: 'Failed to delete configuration' },
+        { error: deleteError.message || 'Failed to delete configuration' },
         { status: 500 }
       )
     }
