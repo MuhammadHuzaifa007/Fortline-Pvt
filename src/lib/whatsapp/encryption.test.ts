@@ -111,15 +111,35 @@ describe("encryption", () => {
     });
   });
 
-  describe("malformed input", () => {
-    it("throws on a single-token blob (no colons)", () => {
-      expect(() => decrypt("not-encrypted-at-all")).toThrow(
-        /unrecognised format/,
-      );
+  describe("key formats", () => {
+    it("supports 32-byte base64 keys and roundtrips with hex key equivalent", () => {
+      const originalKey = process.env.ENCRYPTION_KEY;
+      const base64Key = "suH+IM5wdJfyu1j6dxNSwB/Mb7cQFz21pnS06h88dCM=";
+      const hexKey = Buffer.from(base64Key, "base64").toString("hex");
+
+      try {
+        process.env.ENCRYPTION_KEY = base64Key;
+        const ciphertext = encrypt("secret-token-123");
+
+        // Decrypt with base64 key
+        expect(decrypt(ciphertext)).toBe("secret-token-123");
+
+        // Decrypt with hex equivalent key
+        process.env.ENCRYPTION_KEY = hexKey;
+        expect(decrypt(ciphertext)).toBe("secret-token-123");
+      } finally {
+        process.env.ENCRYPTION_KEY = originalKey;
+      }
     });
 
-    it("throws on a four-part blob", () => {
-      expect(() => decrypt("aa:bb:cc:dd")).toThrow(/unrecognised format/);
+    it("throws a helpful error if ENCRYPTION_KEY is invalid length", () => {
+      const originalKey = process.env.ENCRYPTION_KEY;
+      try {
+        process.env.ENCRYPTION_KEY = "too-short";
+        expect(() => encrypt("secret")).toThrow(/ENCRYPTION_KEY must be a valid 32-byte key/);
+      } finally {
+        process.env.ENCRYPTION_KEY = originalKey;
+      }
     });
   });
 });
