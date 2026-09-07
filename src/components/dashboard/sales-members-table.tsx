@@ -13,11 +13,13 @@ import {
   UserX,
   ShieldAlert,
   ChevronDown,
+  QrCode,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FortlineSalesMemberWithPresence } from '@/types/fortline'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { formatDistanceToNow } from 'date-fns'
+import { SalesChannelQrDialog } from '@/components/settings/sales-channel-qr-dialog'
 
 interface SalesMembersTableProps {
   salesMembers: FortlineSalesMemberWithPresence[]
@@ -35,6 +37,7 @@ export function SalesMembersTable({
   const [selectedPresence, setSelectedPresence] = useState<string>('all')
   const [sortField, setSortField] = useState<'name' | 'division' | 'presence' | 'response_time' | 'contacts'>('division')
   const [sortAsc, setSortAsc] = useState(true)
+  const [qrMember, setQrMember] = useState<FortlineSalesMemberWithPresence | null>(null)
 
   const filteredMembers = useMemo(() => {
     return salesMembers.filter((member) => {
@@ -333,6 +336,15 @@ export function SalesMembersTable({
                     {/* Actions */}
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setQrMember(rep)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-[11px] font-medium transition-colors border border-border"
+                          title="Scan WhatsApp QR code to link mobile phone"
+                        >
+                          <QrCode className="size-3 text-primary" />
+                          <span>QR Link</span>
+                        </button>
                         <Link
                           href={`/inbox?sales_member_id=${rep.id}`}
                           className="inline-flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-medium transition-colors"
@@ -350,6 +362,14 @@ export function SalesMembersTable({
           </tbody>
         </table>
       </div>
+
+      {/* QR Code Linking Dialog */}
+      <SalesChannelQrDialog
+        member={qrMember}
+        open={!!qrMember}
+        onOpenChange={(open) => !open && setQrMember(null)}
+        onStatusChanged={onRefresh}
+      />
     </div>
   )
 }

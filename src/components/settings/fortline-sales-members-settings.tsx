@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Phone,
+  QrCode,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { SalesChannelQrDialog } from '@/components/settings/sales-channel-qr-dialog'
 import type { FortlineSalesMember } from '@/types/fortline'
 
 const DEFAULT_DIVISIONS = [
@@ -42,8 +44,9 @@ export function FortlineSalesMembersSettings() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  // Edit / Add state
+  // Edit / Add / QR state
   const [editingMember, setEditingMember] = useState<FortlineSalesMember | null>(null)
+  const [qrMember, setQrMember] = useState<FortlineSalesMember | null>(null)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isBulkOpen, setIsBulkOpen] = useState(false)
   const [deletingMember, setDeletingMember] = useState<FortlineSalesMember | null>(null)
@@ -467,7 +470,17 @@ export function FortlineSalesMembersSettings() {
                     </button>
                   </td>
                   <td className="py-3 px-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQrMember(m)}
+                        className="h-7 px-2 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                        title="Scan QR Code to link WhatsApp"
+                      >
+                        <QrCode className="size-3" />
+                        <span>Link Phone</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -796,6 +809,14 @@ export function FortlineSalesMembersSettings() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* QR Code Linking Dialog */}
+      <SalesChannelQrDialog
+        member={qrMember}
+        open={!!qrMember}
+        onOpenChange={(open) => !open && setQrMember(null)}
+        onStatusChanged={fetchMembers}
+      />
     </div>
   )
 }
