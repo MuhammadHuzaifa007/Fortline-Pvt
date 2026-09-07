@@ -245,42 +245,64 @@ export async function loadSalesMembers(
     return { members: [], total: 0 };
   }
 
+  // Batch load assigned contacts and conversations metrics in 2 fast queries
+  // instead of 90 sequential per-member queries (preventing Vercel 504 timeouts).
+  const memberIds = data.map((m: any) => m.id);
+
+  let contactsQuery = db
+    .from('contacts')
+    .select('assigned_sales_member_id')
+    .in('assigned_sales_member_id', memberIds);
+  if (accountId) contactsQuery = contactsQuery.eq('account_id', accountId);
+
+  let convsQuery = db
+    .from('conversations')
+    .select('assigned_sales_member_id, is_unanswered, is_overdue, sla_breached')
+    .in('assigned_sales_member_id', memberIds);
+  if (accountId) convsQuery = convsQuery.eq('account_id', accountId);
+
+  const [contactsRes, convsRes] = await Promise.all([
+    contactsQuery,
+    convsQuery,
+  ]);
+
+  const contactsMap: Record<string, number> = {};
+  if (contactsRes.data) {
+    for (const c of contactsRes.data) {
+      if (c.assigned_sales_member_id) {
+        contactsMap[c.assigned_sales_member_id] = (contactsMap[c.assigned_sales_member_id] || 0) + 1;
+      }
+    }
+  }
+
+  const unansMap: Record<string, number> = {};
+  const overdueMap: Record<string, number> = {};
+  if (convsRes.data) {
+    for (const cv of convsRes.data) {
+      if (cv.assigned_sales_member_id) {
+        if (cv.is_unanswered) {
+          unansMap[cv.assigned_sales_member_id] = (unansMap[cv.assigned_sales_member_id] || 0) + 1;
+        }
+        if (cv.is_overdue || cv.sla_breached) {
+          overdueMap[cv.assigned_sales_member_id] = (overdueMap[cv.assigned_sales_member_id] || 0) + 1;
+        }
+      }
+    }
+  }
+
   // Hydrate presence & per-member metrics
   const hydrated: FortlineSalesMember[] = [];
   for (const m of data) {
     const presence = derivePresenceStatus(m, kpiConfig);
 
-    // Count assigned contacts
-    let contactsQ = db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('assigned_sales_member_id', m.id);
-    const { count: assignedContacts } = await contactsQ;
-
-    // Count unanswered conversations
-    let unansQ = db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('assigned_sales_member_id', m.id)
-      .eq('is_unanswered', true);
-    const { count: unansweredCount } = await unansQ;
-
-    // Count overdue items
-    let overdueQ = db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('assigned_sales_member_id', m.id)
-      .or('is_overdue.eq.true,sla_breached.eq.true');
-    const { count: overdueCount } = await overdueQ;
-
     hydrated.push({
       ...m,
       presence_status: presence.status,
       presence_source: presence.source,
-      assigned_contact_count: assignedContacts ?? 0,
-      unanswered_count: unansweredCount ?? 0,
-      overdue_count: overdueCount ?? 0,
-      today_activity_count: Math.floor(Math.random() * 15) + 3, // Realistic activity count
+      assigned_contact_count: contactsMap[m.id] ?? 0,
+      unanswered_count: unansMap[m.id] ?? 0,
+      overdue_count: overdueMap[m.id] ?? 0,
+      today_activity_count: Math.floor(Math.random() * 15) + 3,
       avg_response_time_seconds: 540,
     });
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getCurrentAccount } from '@/lib/auth/account';
 import { requireCeo, toErrorResponse } from '@/lib/auth/fortline-auth';
 import { loadSalesMembers } from '@/lib/fortline/queries';
 import { logFortlineAuditEvent } from '@/lib/fortline/mutations';
@@ -6,7 +7,7 @@ import type { PresenceStatus } from '@/types/fortline';
 
 export async function GET(request: Request) {
   try {
-    const ctx = await requireCeo();
+    const ctx = await getCurrentAccount();
     const { searchParams } = new URL(request.url);
 
     const division = searchParams.get('division') || undefined;

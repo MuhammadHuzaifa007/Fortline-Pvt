@@ -59,13 +59,41 @@ function InboxPageInner() {
   );
 
   useEffect(() => {
-    fetch("/api/fortline/sales-members")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const list = data?.members || data?.salesMembers || [];
-        if (Array.isArray(list) && list.length > 0) setSalesMembers(list);
-      })
-      .catch((err) => console.error("Failed to fetch sales members:", err));
+    let cancelled = false;
+    async function loadMembers() {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("fortline_sales_members")
+          .select("id, name, division, designation, phone_number, is_active")
+          .order("name", { ascending: true });
+
+        if (!cancelled && !error && data && data.length > 0) {
+          setSalesMembers(data as FortlineSalesMember[]);
+          return;
+        }
+      } catch {
+        // Fallback to API route below
+      }
+
+      try {
+        const res = await fetch("/api/fortline/sales-members");
+        if (res.ok) {
+          const resData = await res.json();
+          const list = resData?.members || resData?.salesMembers || [];
+          if (!cancelled && Array.isArray(list) && list.length > 0) {
+            setSalesMembers(list);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch sales members:", err);
+      }
+    }
+
+    loadMembers();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
