@@ -20,8 +20,42 @@ export async function GET(request: Request) {
     if (channelId) query = query.eq('id', channelId);
     if (salesMemberId) query = query.eq('sales_member_id', salesMemberId);
 
-    const { data: channel, error } = await query.maybeSingle();
-    if (error || !channel) {
+    let { data: channel } = await query.maybeSingle();
+
+    if (!channel && salesMemberId) {
+      const { data: sm } = await ctx.supabase
+        .from('fortline_sales_members')
+        .select('*')
+        .eq('id', salesMemberId)
+        .maybeSingle();
+
+      if (sm) {
+        const phoneClean = (sm.phone_number || '').trim();
+        const instanceName = `fortline_rep_${sm.id.replace(/-/g, '_').slice(0, 16)}`;
+        const phoneId = sm.channel_id || `channel_${phoneClean.replace(/[^0-9]/g, '') || sm.id.slice(0, 8)}`;
+
+        const { data: newCh } = await ctx.supabase
+          .from('fortline_channels')
+          .insert({
+            account_id: ctx.accountId,
+            sales_member_id: sm.id,
+            phone_number_id: phoneId,
+            display_phone_number: phoneClean,
+            channel_name: `${sm.name} (${phoneClean})`,
+            channel_type: 'qr_gateway',
+            gateway_instance_id: instanceName,
+            connection_status: 'disconnected',
+            pairing_state: 'disconnected',
+            webhook_status: 'pending',
+          })
+          .select('*, sales_member:fortline_sales_members(*)')
+          .single();
+
+        channel = newCh;
+      }
+    }
+
+    if (!channel) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 
@@ -108,8 +142,42 @@ export async function POST(request: Request) {
     if (channelId) query = query.eq('id', channelId);
     if (salesMemberId) query = query.eq('sales_member_id', salesMemberId);
 
-    const { data: channel, error } = await query.maybeSingle();
-    if (error || !channel) {
+    let { data: channel } = await query.maybeSingle();
+
+    if (!channel && salesMemberId) {
+      const { data: sm } = await ctx.supabase
+        .from('fortline_sales_members')
+        .select('*')
+        .eq('id', salesMemberId)
+        .maybeSingle();
+
+      if (sm) {
+        const phoneClean = (sm.phone_number || '').trim();
+        const instanceName = `fortline_rep_${sm.id.replace(/-/g, '_').slice(0, 16)}`;
+        const phoneId = sm.channel_id || `channel_${phoneClean.replace(/[^0-9]/g, '') || sm.id.slice(0, 8)}`;
+
+        const { data: newCh } = await ctx.supabase
+          .from('fortline_channels')
+          .insert({
+            account_id: ctx.accountId,
+            sales_member_id: sm.id,
+            phone_number_id: phoneId,
+            display_phone_number: phoneClean,
+            channel_name: `${sm.name} (${phoneClean})`,
+            channel_type: 'qr_gateway',
+            gateway_instance_id: instanceName,
+            connection_status: 'disconnected',
+            pairing_state: 'disconnected',
+            webhook_status: 'pending',
+          })
+          .select('*, sales_member:fortline_sales_members(*)')
+          .single();
+
+        channel = newCh;
+      }
+    }
+
+    if (!channel) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 });
     }
 

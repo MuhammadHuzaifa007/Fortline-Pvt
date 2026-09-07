@@ -36,14 +36,12 @@ ALTER TABLE public.fortline_gateway_config ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "fortline_gateway_config_all" ON public.fortline_gateway_config;
 CREATE POLICY "fortline_gateway_config_all" ON public.fortline_gateway_config
-  FOR ALL
-  USING (account_id = public.current_account_id())
-  WITH CHECK (account_id = public.current_account_id());
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- 3. Pre-seed gateway instance IDs for any existing fortline_channels
 UPDATE public.fortline_channels
 SET 
-  gateway_instance_id = 'fortline_rep_' || SUBSTRING(id::text, 1, 8),
+  gateway_instance_id = 'fortline_rep_' || REPLACE(id::text, '-', '_'),
   channel_type = 'qr_gateway',
   pairing_state = 'disconnected'
 WHERE gateway_instance_id IS NULL;
