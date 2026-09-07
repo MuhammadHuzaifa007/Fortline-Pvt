@@ -28,6 +28,7 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
 
   const [whatsappConnected, setWhatsappConnected] = useState<boolean | null>(null);
   const [membersCount, setMembersCount] = useState<number>(2);
+  const [salesMembersCount, setSalesMembersCount] = useState<number>(30);
   const [templatesCount, setTemplatesCount] = useState<number>(11);
   const [tagsCount, setTagsCount] = useState<number>(0);
   const [fieldsCount, setFieldsCount] = useState<number>(0);
@@ -59,12 +60,20 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
           setWhatsappConnected(false);
         }
 
-        // Members count
+        // Team members count
         const { count: mCount } = await supabase
           .from('account_members')
           .select('*', { count: 'exact', head: true });
         if (!cancelled && typeof mCount === 'number' && mCount > 0) {
           setMembersCount(mCount);
+        }
+
+        // Sales members count
+        const { count: smCount } = await supabase
+          .from('fortline_sales_members')
+          .select('*', { count: 'exact', head: true });
+        if (!cancelled && typeof smCount === 'number') {
+          setSalesMembersCount(smCount);
         }
 
         // Templates count
@@ -110,22 +119,21 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
             {initial}
           </div>
           <div>
-            <h2 className="text-lg font-bold text-foreground">{displayName}</h2>
-            <p className="text-xs text-muted-foreground">{email}</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-foreground">{displayName}</h2>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <Crown className="size-3" />
+                {roleDisplay}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{email}</p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-start sm:self-center">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/30">
-            <Crown className="size-3.5" />
-            <span>{roleDisplay}</span>
-          </span>
         </div>
       </div>
 
-      {/* Quick Navigation 2x3 Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* WhatsApp */}
+      {/* Grid of quick links */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* WhatsApp Channel */}
         <button
           type="button"
           onClick={() => onSelect('whatsapp')}
@@ -136,20 +144,40 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
               <Radio className="size-5" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-foreground">WhatsApp</h3>
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                {whatsappConnected ? (
+              <h3 className="text-sm font-semibold text-foreground">WhatsApp Channel</h3>
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                {whatsappConnected === null ? (
+                  <span>Checking...</span>
+                ) : whatsappConnected ? (
                   <>
-                    <span className="size-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
                     <span className="text-emerald-500 font-medium">Connected</span>
                   </>
                 ) : (
                   <>
-                    <span className="size-2 rounded-full bg-amber-500 inline-block" />
+                    <span className="size-1.5 rounded-full bg-amber-500" />
                     <span>Configure API</span>
                   </>
                 )}
               </p>
+            </div>
+          </div>
+          <ChevronRight className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-transform" />
+        </button>
+
+        {/* Sales Members Roster */}
+        <button
+          type="button"
+          onClick={() => onSelect('sales-members')}
+          className="group rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:bg-card/80 transition-all flex items-center justify-between text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
+              <Users className="size-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Sales Members Roster</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{salesMembersCount} staff reps</p>
             </div>
           </div>
           <ChevronRight className="size-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-transform" />
@@ -162,11 +190,11 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
           className="group rounded-xl border border-border bg-card p-4 hover:border-primary/40 hover:bg-card/80 transition-all flex items-center justify-between text-left"
         >
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
+            <div className="size-10 rounded-lg bg-muted border border-border text-muted-foreground flex items-center justify-center">
               <Users className="size-5" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-foreground">Team members</h3>
+              <h3 className="text-sm font-semibold text-foreground">Team members (CRM Users)</h3>
               <p className="text-xs text-muted-foreground mt-0.5">{membersCount} members</p>
             </div>
           </div>

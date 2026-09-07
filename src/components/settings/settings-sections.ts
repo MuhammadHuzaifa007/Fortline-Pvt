@@ -19,6 +19,7 @@ export const SETTINGS_SECTIONS = [
   'security',
   'appearance',
   'whatsapp',
+  'sales-members',
   'templates',
   'quick-replies',
   'fields',
@@ -67,6 +68,12 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
     id: 'whatsapp',
     label: 'WhatsApp',
     icon: Radio,
+    group: 'workspace',
+  },
+  'sales-members': {
+    id: 'sales-members',
+    label: 'Sales Roster (30 Reps)',
+    icon: Users,
     group: 'workspace',
   },
   templates: {
@@ -123,7 +130,7 @@ function isSection(value: string | null): value is SettingsSection {
 export function resolveSection(raw: string | null): SettingsSection {
   if (!raw) return DEFAULT_SECTION;
   if (raw === 'company-profile') return 'profile';
-  if (raw === 'sales-members') return 'members';
+  if (raw === 'sales-members') return 'sales-members';
   if (raw === 'whatsapp-channels') return 'whatsapp';
   if (isSection(raw)) return raw;
   return DEFAULT_SECTION;

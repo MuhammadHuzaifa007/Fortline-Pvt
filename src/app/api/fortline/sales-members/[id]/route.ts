@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireCeo, toErrorResponse } from '@/lib/auth/fortline-auth';
-import { updateSalesMember } from '@/lib/fortline/mutations';
+import { updateSalesMember, deleteSalesMember } from '@/lib/fortline/mutations';
 
 export async function GET(
   _request: Request,
@@ -49,6 +49,31 @@ export async function PATCH(
     }
 
     return NextResponse.json({ ok: true, data: result.data });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const ctx = await requireCeo();
+    const { id } = await params;
+
+    const result = await deleteSalesMember(
+      ctx.supabase,
+      id,
+      { userId: ctx.userId },
+      ctx.accountId
+    );
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return toErrorResponse(err);
   }
