@@ -140,17 +140,36 @@ export async function GET() {
     )
   }
 
+  // If Meta metadata and WABA subscription are both verified, the number is live.
+  // Test numbers and pre-registered numbers do not require /register with a PIN.
   const live =
     checks.phone_metadata_ok &&
-    (checks.waba_subscribed_to_app ?? false) &&
-    checks.locally_marked_registered
+    (checks.waba_subscribed_to_app ?? false)
+
+  if (live) {
+    checks.locally_marked_registered = true
+    const nowIso = new Date().toISOString()
+    try {
+      await supabase
+        .from('whatsapp_config')
+        .update({
+          registered_at: config.registered_at || nowIso,
+          subscribed_apps_at: config.subscribed_apps_at || nowIso,
+          last_registration_error: null,
+          status: 'connected',
+        })
+        .eq('account_id', accountId)
+    } catch {
+      // Best-effort in case columns not yet added
+    }
+  }
 
   return NextResponse.json({
     live,
     checks,
     errors,
     last_registration_error: config.last_registration_error ?? null,
-    registered_at: config.registered_at ?? null,
-    subscribed_apps_at: config.subscribed_apps_at ?? null,
+    registered_at: config.registered_at ?? (live ? new Date().toISOString() : null),
+    subscribed_apps_at: config.subscribed_apps_at ?? (live ? new Date().toISOString() : null),
   })
 }

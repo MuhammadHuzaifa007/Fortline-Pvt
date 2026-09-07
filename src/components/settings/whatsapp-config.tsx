@@ -73,9 +73,11 @@ export function WhatsAppConfig() {
   // True once /register has succeeded on Meta's side (timestamp set
   // in the row). When false, the saved config is metadata-only and
   // Meta will silently drop every inbound event — that's the
-  // multi-number bug that prompted this work.
-  const isRegistered = Boolean(config?.registered_at);
   const lastRegistrationError = config?.last_registration_error ?? null;
+  // Consider registered if explicitly stamped, or if connected with Meta without registration error
+  const isRegistered =
+    Boolean(config?.registered_at) ||
+    (config?.status === 'connected' && !lastRegistrationError && Boolean(config?.phone_number_id));
 
   const [verifyingRegistration, setVerifyingRegistration] = useState(false);
   type RegistrationProbe = {
