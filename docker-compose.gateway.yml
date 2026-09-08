@@ -12,10 +12,31 @@ version: '3.8'
 # ============================================================
 
 services:
+  # ------------------------------------------------------------
+  # PostgreSQL Database for Evolution API v2 Migrations
+  # ------------------------------------------------------------
+  postgres:
+    image: postgres:15
+    container_name: fortline_database
+    environment:
+      - POSTGRES_USER=fortline
+      - POSTGRES_PASSWORD=fortline_secret
+      - POSTGRES_DB=evolution
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  # ------------------------------------------------------------
+  # Evolution API Gateway
+  # ------------------------------------------------------------
   fortline-evolution-gateway:
-    image: atendai/evolution-api:v2.1.2
+    image: evoapicloud/evolution-api:v2.1.2
     container_name: fortline_evolution_gateway
     restart: always
+    depends_on:
+      - postgres
     ports:
       - "8080:8080"
     environment:
@@ -32,12 +53,12 @@ services:
       - CONFIG_SESSION_PHONE_CLIENT=Fortline CRM
       - CONFIG_SESSION_PHONE_NAME=Chrome
 
-      # Local persistent storage for WhatsApp session keys
-      - DATABASE_ENABLED=false
+      # Database Connection 
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://fortline:fortline_secret@postgres:5432/evolution?schema=public
 
       # Global Webhook to push events into Fortline CRM
-      # In local development: http://host.docker.internal:3000/api/gateway/webhook
-      # In production: https://[your-crm-domain]/api/gateway/webhook
       - WEBHOOK_GLOBAL_ENABLED=true
       - WEBHOOK_GLOBAL_URL=http://host.docker.internal:3000/api/gateway/webhook
       - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=true
@@ -60,3 +81,5 @@ volumes:
     name: fortline_evolution_instances
   evolution_store:
     name: fortline_evolution_store
+  postgres_data:
+    name: fortline_postgres_data
