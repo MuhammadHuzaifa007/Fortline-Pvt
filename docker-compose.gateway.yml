@@ -29,6 +29,18 @@ services:
     restart: always
 
   # ------------------------------------------------------------
+  # Redis Cache for Websockets & Queue Management
+  # ------------------------------------------------------------
+  redis:
+    image: redis:alpine
+    container_name: fortline_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # ------------------------------------------------------------
   # Evolution API Gateway
   # ------------------------------------------------------------
   fortline-evolution-gateway:
@@ -37,6 +49,7 @@ services:
     restart: always
     depends_on:
       - postgres
+      - redis
     ports:
       - "8080:8080"
     environment:
@@ -57,6 +70,12 @@ services:
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
       - DATABASE_CONNECTION_URI=postgresql://fortline:fortline_secret@postgres:5432/evolution?schema=public
+
+      # Redis Cache Configuration
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+      - CACHE_REDIS_PREFIX_KEY=evo
+      - CACHE_LOCAL_ENABLED=false
 
       # Global Webhook to push events into Fortline CRM
       - WEBHOOK_GLOBAL_ENABLED=true
@@ -83,3 +102,5 @@ volumes:
     name: fortline_evolution_store
   postgres_data:
     name: fortline_postgres_data
+  redis_data:
+    name: fortline_redis_data
