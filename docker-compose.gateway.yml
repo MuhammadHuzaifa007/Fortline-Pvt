@@ -62,10 +62,6 @@ services:
       - AUTHENTICATION_API_KEY=fortline-secret-api-key
       - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
 
-      # WhatsApp session client branding
-      - CONFIG_SESSION_PHONE_CLIENT=Fortline CRM
-      - CONFIG_SESSION_PHONE_NAME=Chrome
-
       # Database Connection 
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
