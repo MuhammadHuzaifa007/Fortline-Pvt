@@ -73,17 +73,19 @@ export async function GET(request: Request) {
         cache: 'no-store',
       });
 
-      if (stateRes.ok) {
+      if (stateRes.ok || stateRes.status === 404) {
         isGatewayReachable = true;
-        const stateData = await stateRes.json();
-        const rawState = stateData?.instance?.state;
-        if (rawState === 'open') {
-          liveState = 'connected';
-          qrcodeBase64 = null;
-        } else if (rawState === 'connecting') {
-          liveState = 'connecting';
-        } else {
-          liveState = 'disconnected';
+        if (stateRes.ok) {
+          const stateData = await stateRes.json();
+          const rawState = stateData?.instance?.state;
+          if (rawState === 'open') {
+            liveState = 'connected';
+            qrcodeBase64 = null;
+          } else if (rawState === 'connecting') {
+            liveState = 'connecting';
+          } else {
+            liveState = 'disconnected';
+          }
         }
       }
     } catch {
@@ -220,17 +222,26 @@ export async function POST(request: Request) {
     }
 
     if (!qrcodeBase64) {
-      try {
-        const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}`, {
-          headers: { apikey: gatewayConfig.api_key },
-        });
-        const connectData = await connectRes.json();
-        const b64 = connectData?.qrcode?.base64 || connectData?.base64;
-        if (b64) {
-          qrcodeBase64 = b64;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
         }
-      } catch (err: any) {
-        console.warn('[gateway-instance] Gateway container unreachable:', err.message);
+        try {
+          const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}`, {
+            headers: { apikey: gatewayConfig.api_key },
+          });
+          if (connectRes.ok) {
+            const connectData = await connectRes.json();
+            const b64 = connectData?.qrcode?.base64 || connectData?.base64;
+            if (b64) {
+              qrcodeBase64 = b64;
+              break;
+            }
+          }
+        } catch (err: any) {
+          console.warn('[gateway-instance] Gateway container unreachable:', err.message);
+          break;
+        }
       }
     }
 

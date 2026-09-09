@@ -44,7 +44,7 @@ services:
   # Evolution API Gateway
   # ------------------------------------------------------------
   fortline-evolution-gateway:
-    image: evoapicloud/evolution-api:v2.1.2
+    image: evoapicloud/evolution-api:latest
     container_name: fortline_evolution_gateway
     restart: always
     depends_on:

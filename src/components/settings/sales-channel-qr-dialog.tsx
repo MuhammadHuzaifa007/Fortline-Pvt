@@ -79,10 +79,15 @@ export function SalesChannelQrDialog({
       })
       if (res.ok) {
         const data = await res.json()
-        setPairingState(data.pairingState || 'qrcode')
+        setPairingState(data.pairingState || (data.qrcode ? 'qrcode' : 'connecting'))
         setQrcode(data.qrcode)
         setInstanceName(data.instanceName)
-        toast.success('Generated new QR code. Scan with WhatsApp!')
+        if (data.qrcode) {
+          toast.success('Generated new QR code. Scan with WhatsApp!')
+        } else {
+          toast.info('Starting WhatsApp gateway session. QR code incoming...')
+          setTimeout(() => fetchStatus(false), 1500)
+        }
       } else {
         const err = await res.json()
         toast.error(err.error || 'Failed to generate QR code')
@@ -219,6 +224,16 @@ export function SalesChannelQrDialog({
                 <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                   <Loader2 className="size-3 animate-spin text-primary" />
                   <span>Waiting for scan from phone camera...</span>
+                </div>
+              </div>
+            ) : pairingState === 'connecting' ? (
+              <div className="space-y-3">
+                <Loader2 className="size-8 animate-spin mx-auto text-primary" />
+                <div>
+                  <h4 className="font-semibold text-foreground text-sm">Generating WhatsApp QR Code...</h4>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    Connecting to WhatsApp session for {member.name}. The QR code will appear in just a few seconds...
+                  </p>
                 </div>
               </div>
             ) : (

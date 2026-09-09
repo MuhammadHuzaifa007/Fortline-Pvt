@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { GatewayConfig } from '@/types/gateway';
 
-export const DEFAULT_GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
+export const DEFAULT_GATEWAY_URL = process.env.GATEWAY_URL || 'http://127.0.0.1:8080';
 export const DEFAULT_GATEWAY_API_KEY = process.env.GATEWAY_API_KEY || 'fortline-secret-api-key';
 
 export async function getGatewayConfig(
