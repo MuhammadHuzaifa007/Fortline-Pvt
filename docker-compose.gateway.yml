@@ -56,7 +56,7 @@ services:
       # Server config
       - SERVER_TYPE=http
       - SERVER_PORT=8080
-      - SERVER_URL=http://localhost:8080
+      - SERVER_URL=https://unwieldy-chevron-buffing.ngrok-free.dev
 
       # API Authentication Key (Matches CRM config)
       - AUTHENTICATION_API_KEY=fortline-secret-api-key
@@ -73,9 +73,9 @@ services:
       - CACHE_REDIS_PREFIX_KEY=evo
       - CACHE_LOCAL_ENABLED=false
 
-      # Global Webhook to push events into Fortline CRM
+      # Global Webhook to push events into Fortline CRM on Vercel
       - WEBHOOK_GLOBAL_ENABLED=true
-      - WEBHOOK_GLOBAL_URL=http://host.docker.internal:3000/api/gateway/webhook
+      - WEBHOOK_GLOBAL_URL=https://fortline-pvt.vercel.app/api/gateway/webhook
       - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=true
 
       # Enabled events
