@@ -2,6 +2,46 @@ import { NextResponse } from 'next/server';
 import { requireCeo, toErrorResponse } from '@/lib/auth/fortline-auth';
 import { getGatewayConfig } from '@/lib/gateway/config';
 
+// Resilient fetch helper: tries primary gateway URL, with auto-fallback to localhost:8080 if remote fails
+async function gatewayFetch(
+  primaryUrl: string,
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const cleanPrimary = (primaryUrl || 'http://127.0.0.1:8080').replace(/\/$/, '');
+  const urlsToTry = [cleanPrimary];
+
+  if (!cleanPrimary.includes('127.0.0.1') && !cleanPrimary.includes('localhost')) {
+    urlsToTry.push('http://127.0.0.1:8080');
+    urlsToTry.push('http://localhost:8080');
+  }
+
+  let lastError: any = null;
+  for (const baseUrl of urlsToTry) {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, {
+        ...options,
+        signal: AbortSignal.timeout(6000),
+      });
+      return res;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error(`Failed to reach gateway at ${urlsToTry.join(', ')}`);
+}
+
+function normalizePhoneNumber(raw: string): string {
+  if (!raw) return '';
+  let clean = raw.replace(/[^0-9]/g, '');
+  if (clean.startsWith('00')) clean = clean.slice(2);
+  // Convert 03XXXXXXXXX (11 digits) to 923XXXXXXXXX
+  if (clean.startsWith('0') && clean.length === 11) {
+    clean = '92' + clean.slice(1);
+  }
+  return clean;
+}
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireCeo();
@@ -30,9 +70,9 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (sm) {
-        const phoneClean = (sm.phone_number || '').trim();
+        const phoneClean = normalizePhoneNumber(sm.phone_number || '');
         const instanceName = `fortline_rep_${sm.id.replace(/-/g, '_').slice(0, 16)}`;
-        const phoneId = sm.channel_id || `channel_${phoneClean.replace(/[^0-9]/g, '') || sm.id.slice(0, 8)}`;
+        const phoneId = sm.channel_id || `channel_${phoneClean || sm.id.slice(0, 8)}`;
 
         const { data: newCh } = await ctx.supabase
           .from('fortline_channels')
@@ -40,8 +80,8 @@ export async function GET(request: Request) {
             account_id: ctx.accountId,
             sales_member_id: sm.id,
             phone_number_id: phoneId,
-            display_phone_number: phoneClean,
-            channel_name: `${sm.name} (${phoneClean})`,
+            display_phone_number: sm.phone_number || phoneClean,
+            channel_name: `${sm.name} (${sm.phone_number || phoneClean})`,
             channel_type: 'qr_gateway',
             gateway_instance_id: instanceName,
             connection_status: 'disconnected',
@@ -62,16 +102,21 @@ export async function GET(request: Request) {
     const instanceName = channel.gateway_instance_id || `fortline_rep_${channel.id.slice(0, 8)}`;
     const gatewayConfig = await getGatewayConfig(ctx.supabase, ctx.accountId);
 
-    // Attempt to query Evolution API for fresh state & QR code
+    // Attempt to query Evolution API for fresh state
     let liveState = channel.pairing_state || 'disconnected';
     let qrcodeBase64 = channel.qr_code_raw || null;
+    let pairingCode: string | null = null;
     let isGatewayReachable = false;
 
     try {
-      const stateRes = await fetch(`${gatewayConfig.gateway_url}/instance/connectionState/${instanceName}`, {
-        headers: { apikey: gatewayConfig.api_key },
-        cache: 'no-store',
-      });
+      const stateRes = await gatewayFetch(
+        gatewayConfig.gateway_url,
+        `/instance/connectionState/${instanceName}`,
+        {
+          headers: { apikey: gatewayConfig.api_key },
+          cache: 'no-store',
+        }
+      );
 
       if (stateRes.ok || stateRes.status === 404) {
         isGatewayReachable = true;
@@ -81,6 +126,7 @@ export async function GET(request: Request) {
           if (rawState === 'open') {
             liveState = 'connected';
             qrcodeBase64 = null;
+            pairingCode = null;
           } else if (rawState === 'connecting') {
             liveState = 'connecting';
           } else {
@@ -92,19 +138,38 @@ export async function GET(request: Request) {
       // Gateway container not running or network error
     }
 
-    // If disconnected, check if we need to fetch connect state
+    // If disconnected or in setup mode, check if we can fetch fresh connect state (QR or pairing code)
     if (isGatewayReachable && liveState !== 'connected') {
       try {
-        const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}`, {
+        const cleanPhone = normalizePhoneNumber(
+          channel.display_phone_number || channel.sales_member?.phone_number || ''
+        );
+        const connectUrl = cleanPhone
+          ? `/instance/connect/${instanceName}?number=${cleanPhone}`
+          : `/instance/connect/${instanceName}`;
+
+        const connectRes = await gatewayFetch(gatewayConfig.gateway_url, connectUrl, {
           headers: { apikey: gatewayConfig.api_key },
           cache: 'no-store',
         });
+
         if (connectRes.ok) {
           const connectData = await connectRes.json();
           const b64 = connectData?.qrcode?.base64 || connectData?.base64;
+          const code =
+            connectData?.pairingCode ||
+            connectData?.code ||
+            connectData?.count?.pairingCode ||
+            connectData?.qrcode?.pairingCode ||
+            null;
+
           if (b64) {
             qrcodeBase64 = b64;
             liveState = 'qrcode';
+          }
+          if (code && typeof code === 'string' && code.length >= 6) {
+            pairingCode = code;
+            liveState = 'pairing_code';
           }
         }
       } catch {
@@ -120,6 +185,7 @@ export async function GET(request: Request) {
       instanceName,
       pairingState: liveState,
       qrcode: qrcodeBase64,
+      pairingCode,
       isGatewayReachable,
       gatewayUrl: gatewayConfig.gateway_url,
     });
@@ -155,9 +221,9 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (sm) {
-        const phoneClean = (sm.phone_number || '').trim();
+        const phoneClean = normalizePhoneNumber(sm.phone_number || '');
         const instanceName = `fortline_rep_${sm.id.replace(/-/g, '_').slice(0, 16)}`;
-        const phoneId = sm.channel_id || `channel_${phoneClean.replace(/[^0-9]/g, '') || sm.id.slice(0, 8)}`;
+        const phoneId = sm.channel_id || `channel_${phoneClean || sm.id.slice(0, 8)}`;
 
         const { data: newCh } = await ctx.supabase
           .from('fortline_channels')
@@ -165,8 +231,8 @@ export async function POST(request: Request) {
             account_id: ctx.accountId,
             sales_member_id: sm.id,
             phone_number_id: phoneId,
-            display_phone_number: phoneClean,
-            channel_name: `${sm.name} (${phoneClean})`,
+            display_phone_number: sm.phone_number || phoneClean,
+            channel_name: `${sm.name} (${sm.phone_number || phoneClean})`,
             channel_type: 'qr_gateway',
             gateway_instance_id: instanceName,
             connection_status: 'disconnected',
@@ -191,31 +257,30 @@ export async function POST(request: Request) {
     const webhookUrl = `${proto}://${host}/api/gateway/webhook`;
 
     // ------------------------------------------------------------
-    // Flow A: Pairing with Phone Number (8-Digit Code)
+    // Flow A: Pairing with Phone Number (8-Digit Code / OTP)
     // ------------------------------------------------------------
     if (method === 'pairing_code') {
-      const rawTargetPhone = (phoneNumber || channel.display_phone_number || channel.sales_member?.phone_number || '').trim();
-      let cleanPhone = rawTargetPhone.replace(/[^0-9]/g, '');
-
-      // Normalize international format
-      if (cleanPhone.startsWith('00')) {
-        cleanPhone = cleanPhone.slice(2);
-      }
-      // If entered in Pakistani local format e.g. 03001234567 -> 923001234567
-      if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
-        cleanPhone = '92' + cleanPhone.slice(1);
-      }
+      const targetPhone = (
+        phoneNumber ||
+        channel.display_phone_number ||
+        channel.sales_member?.phone_number ||
+        ''
+      ).trim();
+      const cleanPhone = normalizePhoneNumber(targetPhone);
 
       if (!cleanPhone || cleanPhone.length < 8) {
         return NextResponse.json(
-          { error: 'Please provide a valid phone number (e.g. 0300 1234567 or +92 300 1234567) to generate a pairing code.' },
+          {
+            error:
+              'Please provide a valid phone number (e.g. +92 300 1234567 or 03001234567) to generate a pairing code.',
+          },
           { status: 400 }
         );
       }
 
-      // 1. Create or ensure instance in Evolution API with qrcode: false & number
+      // 1. Create or ensure instance in Evolution API with qrcode: false & number: cleanPhone
       try {
-        await fetch(`${gatewayConfig.gateway_url}/instance/create`, {
+        await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -243,21 +308,28 @@ export async function POST(request: Request) {
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
         try {
-          const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}?number=${cleanPhone}`, {
-            headers: { apikey: gatewayConfig.api_key },
-            cache: 'no-store',
-          });
+          const connectRes = await gatewayFetch(
+            gatewayConfig.gateway_url,
+            `/instance/connect/${instanceName}?number=${cleanPhone}`,
+            {
+              headers: { apikey: gatewayConfig.api_key },
+              cache: 'no-store',
+            }
+          );
           if (connectRes.ok) {
             const connectData = await connectRes.json();
-            const code = connectData?.pairingCode || connectData?.code || connectData?.count?.pairingCode || null;
-            if (code && typeof code === 'string' && code.length >= 6) {
-              pairingCode = code;
+            pairingCode =
+              connectData?.pairingCode ||
+              connectData?.code ||
+              connectData?.count?.pairingCode ||
+              connectData?.qrcode?.pairingCode ||
+              null;
+            if (pairingCode && typeof pairingCode === 'string' && pairingCode.length >= 6) {
               break;
             }
           }
         } catch (err: any) {
           console.warn('[gateway-instance] Connect with phone error:', err.message);
-          break;
         }
       }
 
@@ -267,25 +339,13 @@ export async function POST(request: Request) {
         .update({
           channel_type: 'qr_gateway',
           gateway_instance_id: instanceName,
-          display_phone_number: `+${cleanPhone}`,
+          display_phone_number: targetPhone,
           pairing_state: pairingCode ? 'pairing_code' : 'connecting',
           qr_code_raw: null,
           last_qr_generated_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', channel.id);
-
-      // Also update sales member's whatsapp phone number if available
-      if (channel.sales_member_id) {
-        await ctx.supabase
-          .from('fortline_sales_members')
-          .update({
-            whatsapp_phone_number: `+${cleanPhone}`,
-            phone_number: channel.sales_member?.phone_number || `+${cleanPhone}`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', channel.sales_member_id);
-      }
 
       return NextResponse.json({
         ok: true,
@@ -306,7 +366,7 @@ export async function POST(request: Request) {
     let pairingState = 'qrcode';
 
     try {
-      const createRes = await fetch(`${gatewayConfig.gateway_url}/instance/create`, {
+      const createRes = await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -333,14 +393,19 @@ export async function POST(request: Request) {
     }
 
     if (!qrcodeBase64) {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 4; attempt++) {
         if (attempt > 0) {
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
         try {
-          const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}`, {
-            headers: { apikey: gatewayConfig.api_key },
-          });
+          const connectRes = await gatewayFetch(
+            gatewayConfig.gateway_url,
+            `/instance/connect/${instanceName}`,
+            {
+              headers: { apikey: gatewayConfig.api_key },
+              cache: 'no-store',
+            }
+          );
           if (connectRes.ok) {
             const connectData = await connectRes.json();
             const b64 = connectData?.qrcode?.base64 || connectData?.base64;
@@ -407,7 +472,7 @@ export async function DELETE(request: Request) {
 
     if (instanceName) {
       try {
-        await fetch(`${gatewayConfig.gateway_url}/instance/logout/${instanceName}`, {
+        await gatewayFetch(gatewayConfig.gateway_url, `/instance/logout/${instanceName}`, {
           method: 'DELETE',
           headers: { apikey: gatewayConfig.api_key },
         });
@@ -431,3 +496,4 @@ export async function DELETE(request: Request) {
     return toErrorResponse(err);
   }
 }
+
