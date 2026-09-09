@@ -42,7 +42,10 @@ export function SalesChannelQrDialog({
   const [qrcode, setQrcode] = useState<string | null>(null)
   const [instanceName, setInstanceName] = useState<string>('')
   const [isGatewayReachable, setIsGatewayReachable] = useState(true)
+  const [justConnected, setJustConnected] = useState(false)
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const prevPairingStateRef = useRef<string>('disconnected')
 
   const fetchStatus = useCallback(async (isInitial = false) => {
     if (!member) return
@@ -52,25 +55,50 @@ export function SalesChannelQrDialog({
       const res = await fetch(`/api/gateway/instance?salesMemberId=${member.id}`)
       if (res.ok) {
         const data = await res.json()
-        setPairingState(data.pairingState)
+        const nextState = data.pairingState
+        setPairingState(nextState)
         setQrcode(data.qrcode)
         setInstanceName(data.instanceName)
         setIsGatewayReachable(data.isGatewayReachable ?? true)
 
-        if (data.pairingState === 'connected') {
+        if (nextState === 'connected') {
           onStatusChanged?.()
+
+          // If transitioning to connected from an active pairing flow (scanning or connecting)
+          if (
+            prevPairingStateRef.current === 'qrcode' ||
+            prevPairingStateRef.current === 'connecting'
+          ) {
+            setJustConnected(true)
+            toast.success(`${member.name}'s WhatsApp connected successfully!`)
+
+            // Trigger background chat sync into CRM
+            fetch('/api/gateway/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ salesMemberId: member.id }),
+            }).catch(() => {})
+
+            // Auto-close dialog after 1.8 seconds celebration
+            if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
+            autoCloseTimeoutRef.current = setTimeout(() => {
+              onOpenChange(false)
+            }, 1800)
+          }
         }
+        prevPairingStateRef.current = nextState
       }
     } catch {
       // Network error
     } finally {
       if (isInitial) setLoading(false)
     }
-  }, [member, onStatusChanged])
+  }, [member, onOpenChange, onStatusChanged])
 
   const requestQrCode = async () => {
     if (!member) return
     setLoading(true)
+    setJustConnected(false)
     try {
       const res = await fetch('/api/gateway/instance', {
         method: 'POST',
@@ -79,7 +107,9 @@ export function SalesChannelQrDialog({
       })
       if (res.ok) {
         const data = await res.json()
-        setPairingState(data.pairingState || (data.qrcode ? 'qrcode' : 'connecting'))
+        const state = data.pairingState || (data.qrcode ? 'qrcode' : 'connecting')
+        setPairingState(state)
+        prevPairingStateRef.current = state
         setQrcode(data.qrcode)
         setInstanceName(data.instanceName)
         if (data.qrcode) {
@@ -103,6 +133,7 @@ export function SalesChannelQrDialog({
     if (!member) return
     if (!confirm(`Disconnect WhatsApp session for ${member.name}?`)) return
     setLoading(true)
+    setJustConnected(false)
     try {
       const res = await fetch(`/api/gateway/instance?salesMemberId=${member.id}`, {
         method: 'DELETE',
@@ -110,6 +141,7 @@ export function SalesChannelQrDialog({
       if (res.ok) {
         toast.success(`Disconnected ${member.name}`)
         setPairingState('disconnected')
+        prevPairingStateRef.current = 'disconnected'
         setQrcode(null)
         onStatusChanged?.()
       } else {
@@ -124,6 +156,8 @@ export function SalesChannelQrDialog({
 
   useEffect(() => {
     if (open && member) {
+      setJustConnected(false)
+      prevPairingStateRef.current = 'disconnected'
       fetchStatus(true)
       // Start polling every 3.5 seconds
       pollTimerRef.current = setInterval(() => {
@@ -131,10 +165,12 @@ export function SalesChannelQrDialog({
       }, 3500)
     } else {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+      if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
     }
 
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+      if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
     }
   }, [open, member, fetchStatus])
 
@@ -190,17 +226,28 @@ export function SalesChannelQrDialog({
                 <p className="text-xs">Communicating with WhatsApp Gateway...</p>
               </div>
             ) : pairingState === 'connected' ? (
-              <div className="space-y-3">
-                <div className="size-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto">
+              <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                <div className="size-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto shadow-xs">
                   <CheckCircle2 className="size-8" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-foreground text-sm">Device Connected & Monitoring</h4>
+                  <h4 className="font-semibold text-foreground text-sm">
+                    {justConnected ? '🎉 WhatsApp Connected Successfully!' : 'Device Connected & Monitoring'}
+                  </h4>
                   <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                    All incoming and outgoing WhatsApp messages from {member.name}'s phone are now securely syncing to your CRM.
+                    {justConnected
+                      ? `Chats from ${member.name}'s phone are syncing to Fortline CRM. Closing window...`
+                      : `All incoming and outgoing WhatsApp messages from ${member.name}'s phone are securely syncing to your CRM.`}
                   </p>
                 </div>
-                <div className="pt-2">
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => onOpenChange(false)}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4"
+                  >
+                    Done
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
