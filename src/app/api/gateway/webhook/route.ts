@@ -8,10 +8,16 @@ import { normalizeGatewayMessage } from '@/lib/gateway/normalize';
  * - connection.update / qrcode.updated (Session status, QR Code base64)
  * - messages.upsert (Both incoming customer chats and outgoing sales rep mobile replies)
  */
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  context?: { params?: Promise<{ event?: string[] }> | { event?: string[] } }
+) {
   try {
     const payload = await request.json();
-    const event = payload?.event || payload?.type || '';
+    const resolvedParams = context?.params ? await Promise.resolve(context.params) : null;
+    const urlEvent = resolvedParams?.event?.join('.');
+    const rawEvent = payload?.event || payload?.type || urlEvent || '';
+    const event = rawEvent.toLowerCase().replace(/[-_]/g, '.');
     const instance = payload?.instance || payload?.instanceName || '';
 
     if (!instance) {
@@ -28,8 +34,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (chErr || !channel) {
-      console.warn(`[gateway-webhook] Unrecognized instance: ${instance}`);
-      return NextResponse.json({ ok: false, error: `Unmapped gateway instance: ${instance}` }, { status: 404 });
+      return NextResponse.json({ ok: true, skipped: `unmapped_instance_${instance}` });
     }
 
     const accountId = channel.account_id;
@@ -37,10 +42,10 @@ export async function POST(request: Request) {
 
     // 2. Handle Connection & QR Code updates
     if (
+      event.includes('connection') ||
+      event.includes('qrcode') ||
       event === 'connection.update' ||
-      event === 'CONNECTION_UPDATE' ||
-      event === 'qrcode.updated' ||
-      event === 'QRCODE_UPDATED'
+      event === 'qrcode.updated'
     ) {
       const state = payload.data?.state || payload.data?.connection;
       const qrBase64 = payload.data?.qrcode?.base64 || payload.data?.qrcode || null;
@@ -107,7 +112,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Handle Message Upsert (Incoming customer lead or Outgoing sales rep reply)
-    if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
+    if (event.includes('messages.upsert') || event.includes('messages_upsert') || event === 'messages.upsert') {
       const norm = normalizeGatewayMessage(payload);
       if (!norm) {
         return NextResponse.json({ ok: true, skipped: 'unparseable_or_broadcast' });
