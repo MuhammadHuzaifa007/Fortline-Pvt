@@ -135,7 +135,7 @@ export async function POST(
         .from('contacts')
         .select('id, name')
         .eq('account_id', accountId)
-        .eq('phone_number', norm.customerPhone)
+        .eq('phone', norm.customerPhone)
         .maybeSingle();
 
       if (existingContact) {
@@ -151,7 +151,7 @@ export async function POST(
           .from('contacts')
           .insert({
             account_id: accountId,
-            phone_number: norm.customerPhone,
+            phone: norm.customerPhone,
             name: norm.customerName || norm.customerPhone,
             assigned_sales_member_id: salesMemberId || null,
           })
