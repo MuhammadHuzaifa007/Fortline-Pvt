@@ -52,7 +52,13 @@ export default function DashboardPage() {
         const json = await res.json()
         setData(json)
       } else {
-        console.error('[dashboard] Failed to load summary:', await res.text())
+        const errText = await res.text()
+        try {
+          const errJson = JSON.parse(errText)
+          console.warn('[dashboard] Failed to load summary:', res.status, errJson.error || errJson)
+        } catch {
+          console.warn('[dashboard] Failed to load summary:', res.status, errText.slice(0, 150))
+        }
       }
     } catch (err) {
       console.error('[dashboard] Error fetching summary:', err)
