@@ -102,6 +102,16 @@ export function FortlineSalesMembersSettings() {
     setFormIsActive(m.is_active)
   }
 
+  const normalizePhoneForSave = (raw: string) => {
+    const cleaned = raw.trim()
+    let digits = cleaned.replace(/[^0-9]/g, '')
+    if (digits.startsWith('00')) digits = digits.slice(2)
+    if (digits.startsWith('0') && digits.length === 11) {
+      digits = '92' + digits.slice(1)
+    }
+    return digits ? `+${digits}` : cleaned
+  }
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formName.trim() || !formPhone.trim()) {
@@ -111,20 +121,21 @@ export function FortlineSalesMembersSettings() {
 
     setSaving(true)
     try {
+      const normalizedPhone = normalizePhoneForSave(formPhone)
       const res = await fetch('/api/fortline/sales-members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formName.trim(),
-          phone_number: formPhone.trim(),
-          division: formDivision.trim(),
-          designation: formDesignation.trim(),
+          phone_number: normalizedPhone,
+          division: (formDivision || DEFAULT_DIVISIONS[0]).trim(),
+          designation: (formDesignation || 'Sales Representative').trim(),
           is_active: formIsActive,
         }),
       })
 
       if (res.ok) {
-        toast.success(`Added ${formName} to sales roster`)
+        toast.success(`Added ${formName} (${normalizedPhone}) to sales roster`)
         setIsAddOpen(false)
         fetchMembers()
       } else {
@@ -143,20 +154,21 @@ export function FortlineSalesMembersSettings() {
     if (!editingMember) return
     setSaving(true)
     try {
+      const normalizedPhone = normalizePhoneForSave(formPhone)
       const res = await fetch(`/api/fortline/sales-members/${editingMember.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formName.trim(),
-          phone_number: formPhone.trim(),
-          division: formDivision.trim(),
-          designation: formDesignation.trim(),
+          phone_number: normalizedPhone,
+          division: (formDivision || DEFAULT_DIVISIONS[0]).trim(),
+          designation: (formDesignation || 'Sales Representative').trim(),
           is_active: formIsActive,
         }),
       })
 
       if (res.ok) {
-        toast.success(`Updated ${formName}`)
+        toast.success(`Updated ${formName} (${normalizedPhone})`)
         setEditingMember(null)
         fetchMembers()
       } else {

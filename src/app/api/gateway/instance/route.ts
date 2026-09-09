@@ -194,17 +194,26 @@ export async function POST(request: Request) {
     // Flow A: Pairing with Phone Number (8-Digit Code)
     // ------------------------------------------------------------
     if (method === 'pairing_code') {
-      const targetPhone = (phoneNumber || channel.display_phone_number || channel.sales_member?.phone_number || '').trim();
-      const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+      const rawTargetPhone = (phoneNumber || channel.display_phone_number || channel.sales_member?.phone_number || '').trim();
+      let cleanPhone = rawTargetPhone.replace(/[^0-9]/g, '');
+
+      // Normalize international format
+      if (cleanPhone.startsWith('00')) {
+        cleanPhone = cleanPhone.slice(2);
+      }
+      // If entered in Pakistani local format e.g. 03001234567 -> 923001234567
+      if (cleanPhone.startsWith('0') && cleanPhone.length === 11) {
+        cleanPhone = '92' + cleanPhone.slice(1);
+      }
 
       if (!cleanPhone || cleanPhone.length < 8) {
         return NextResponse.json(
-          { error: 'Please provide a valid phone number with country code (e.g. +92 300 1234567) to generate a pairing code.' },
+          { error: 'Please provide a valid phone number (e.g. 0300 1234567 or +92 300 1234567) to generate a pairing code.' },
           { status: 400 }
         );
       }
 
-      // 1. Create or ensure instance in Evolution API with qrcode: false
+      // 1. Create or ensure instance in Evolution API with qrcode: false & number
       try {
         await fetch(`${gatewayConfig.gateway_url}/instance/create`, {
           method: 'POST',
@@ -227,9 +236,9 @@ export async function POST(request: Request) {
         // Instance might already exist
       }
 
-      // 2. Fetch pairing code from /instance/connect/:instanceName?number=...
+      // 2. Poll for pairing code from /instance/connect/:instanceName?number=...
       let pairingCode: string | null = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt++) {
         if (attempt > 0) {
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
@@ -240,8 +249,11 @@ export async function POST(request: Request) {
           });
           if (connectRes.ok) {
             const connectData = await connectRes.json();
-            pairingCode = connectData?.pairingCode || connectData?.code || connectData?.count?.pairingCode || null;
-            if (pairingCode) break;
+            const code = connectData?.pairingCode || connectData?.code || connectData?.count?.pairingCode || null;
+            if (code && typeof code === 'string' && code.length >= 6) {
+              pairingCode = code;
+              break;
+            }
           }
         } catch (err: any) {
           console.warn('[gateway-instance] Connect with phone error:', err.message);
@@ -255,13 +267,25 @@ export async function POST(request: Request) {
         .update({
           channel_type: 'qr_gateway',
           gateway_instance_id: instanceName,
-          display_phone_number: targetPhone,
+          display_phone_number: `+${cleanPhone}`,
           pairing_state: pairingCode ? 'pairing_code' : 'connecting',
           qr_code_raw: null,
           last_qr_generated_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', channel.id);
+
+      // Also update sales member's whatsapp phone number if available
+      if (channel.sales_member_id) {
+        await ctx.supabase
+          .from('fortline_sales_members')
+          .update({
+            whatsapp_phone_number: `+${cleanPhone}`,
+            phone_number: channel.sales_member?.phone_number || `+${cleanPhone}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', channel.sales_member_id);
+      }
 
       return NextResponse.json({
         ok: true,

@@ -149,12 +149,22 @@ export function SalesChannelQrDialog({
     }
   }
 
+  // Normalize phone number for WhatsApp
+  const getNormalizedPhone = (raw: string) => {
+    let digits = raw.replace(/[^0-9]/g, '')
+    if (digits.startsWith('00')) digits = digits.slice(2)
+    if (digits.startsWith('0') && digits.length === 11) {
+      digits = '92' + digits.slice(1)
+    }
+    return digits
+  }
+
   // Request Phone Pairing Code
   const requestPairingCode = async () => {
     if (!member) return
-    const cleanPhone = phoneInput.replace(/[^0-9]/g, '')
+    const cleanPhone = getNormalizedPhone(phoneInput)
     if (!cleanPhone || cleanPhone.length < 8) {
-      toast.error('Please enter a valid phone number with country code (e.g. +92 300 1234567)')
+      toast.error('Please enter a valid phone number (e.g. 0300 1234567 or +92 300 1234567)')
       return
     }
 
@@ -177,11 +187,12 @@ export function SalesChannelQrDialog({
         setPairingState('pairing_code')
         prevPairingStateRef.current = 'pairing_code'
         setInstanceName(data.instanceName)
+        onStatusChanged?.()
         if (code) {
           toast.success('8-Digit Pairing Code Generated! Enter it on WhatsApp.')
         } else {
-          toast.info('Requesting pairing code from WhatsApp servers...')
-          setTimeout(() => fetchStatus(false), 1500)
+          toast.info('Connecting to WhatsApp pairing server. Fetching code...')
+          setTimeout(() => fetchStatus(false), 2000)
         }
       } else {
         const err = await res.json()
@@ -444,8 +455,13 @@ export function SalesChannelQrDialog({
                     </div>
 
                     <div className="space-y-1.5 text-left">
-                      <Label htmlFor="phone-pair-input" className="text-xs text-muted-foreground font-medium">
-                        WhatsApp Phone Number (with Country Code):
+                      <Label htmlFor="phone-pair-input" className="text-xs text-muted-foreground font-medium flex items-center justify-between">
+                        <span>WhatsApp Phone Number:</span>
+                        {phoneInput.trim() && (
+                          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono font-normal">
+                            Pairs as: +{getNormalizedPhone(phoneInput)}
+                          </span>
+                        )}
                       </Label>
                       <div className="relative">
                         <Phone className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -454,16 +470,42 @@ export function SalesChannelQrDialog({
                           type="tel"
                           value={phoneInput}
                           onChange={(e) => setPhoneInput(e.target.value)}
-                          placeholder="+92 300 1234567"
+                          placeholder="0300 1234567 or +92 300 1234567"
                           className="pl-8 text-xs font-mono h-9"
                         />
+                      </div>
+
+                      {/* Quick country code chips */}
+                      <div className="flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
+                        <span className="text-[10px]">Quick:</span>
+                        <button
+                          type="button"
+                          onClick={() => setPhoneInput((p) => (p.startsWith('+92') ? p : `+92 ${p.replace(/^0/, '')}`.trim()))}
+                          className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-[10px] font-mono border border-border"
+                        >
+                          🇵🇰 +92 (PK)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPhoneInput((p) => (p.startsWith('+971') ? p : `+971 ${p.replace(/^0/, '')}`.trim()))}
+                          className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-[10px] font-mono border border-border"
+                        >
+                          🇦🇪 +971 (UAE)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPhoneInput((p) => (p.startsWith('+1') ? p : `+1 ${p}`.trim()))}
+                          className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-[10px] font-mono border border-border"
+                        >
+                          🇺🇸 +1 (US)
+                        </button>
                       </div>
                     </div>
 
                     <Button
                       size="sm"
                       onClick={requestPairingCode}
-                      className="w-full gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                      className="w-full gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs mt-2"
                     >
                       <Sparkles className="size-3.5" />
                       <span>Generate 8-Digit Pairing Code</span>
