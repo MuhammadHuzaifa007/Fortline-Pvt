@@ -1,4 +1,4 @@
-export type GatewayPairingState = 'connected' | 'connecting' | 'qrcode' | 'disconnected';
+export type GatewayPairingState = 'connected' | 'connecting' | 'qrcode' | 'pairing_code' | 'disconnected';
 
 export interface GatewayConfig {
   id?: string;

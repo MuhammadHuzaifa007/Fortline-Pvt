@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       // Gateway container not running or network error
     }
 
-    // If disconnected or qrcode, check if we need to fetch connect QR
+    // If disconnected, check if we need to fetch connect state
     if (isGatewayReachable && liveState !== 'connected') {
       try {
         const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}`, {
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireCeo();
     const body = await request.json();
-    const { salesMemberId, channelId } = body;
+    const { salesMemberId, channelId, method = 'qrcode', phoneNumber } = body;
 
     if (!salesMemberId && !channelId) {
       return NextResponse.json({ error: 'salesMemberId or channelId is required' }, { status: 400 });
@@ -190,7 +190,94 @@ export async function POST(request: Request) {
     const proto = host.includes('localhost') ? 'http' : 'https';
     const webhookUrl = `${proto}://${host}/api/gateway/webhook`;
 
-    // 1. Create or ensure instance in Evolution API
+    // ------------------------------------------------------------
+    // Flow A: Pairing with Phone Number (8-Digit Code)
+    // ------------------------------------------------------------
+    if (method === 'pairing_code') {
+      const targetPhone = (phoneNumber || channel.display_phone_number || channel.sales_member?.phone_number || '').trim();
+      const cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+
+      if (!cleanPhone || cleanPhone.length < 8) {
+        return NextResponse.json(
+          { error: 'Please provide a valid phone number with country code (e.g. +92 300 1234567) to generate a pairing code.' },
+          { status: 400 }
+        );
+      }
+
+      // 1. Create or ensure instance in Evolution API with qrcode: false
+      try {
+        await fetch(`${gatewayConfig.gateway_url}/instance/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: gatewayConfig.api_key,
+          },
+          body: JSON.stringify({
+            instanceName,
+            token: gatewayConfig.api_key,
+            qrcode: false,
+            number: cleanPhone,
+            integration: 'WHATSAPP-BAILEYS',
+            webhook: webhookUrl,
+            webhook_by_events: true,
+            events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+          }),
+        });
+      } catch {
+        // Instance might already exist
+      }
+
+      // 2. Fetch pairing code from /instance/connect/:instanceName?number=...
+      let pairingCode: string | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+        try {
+          const connectRes = await fetch(`${gatewayConfig.gateway_url}/instance/connect/${instanceName}?number=${cleanPhone}`, {
+            headers: { apikey: gatewayConfig.api_key },
+            cache: 'no-store',
+          });
+          if (connectRes.ok) {
+            const connectData = await connectRes.json();
+            pairingCode = connectData?.pairingCode || connectData?.code || connectData?.count?.pairingCode || null;
+            if (pairingCode) break;
+          }
+        } catch (err: any) {
+          console.warn('[gateway-instance] Connect with phone error:', err.message);
+          break;
+        }
+      }
+
+      // Save phone number & pairing state in DB
+      await ctx.supabase
+        .from('fortline_channels')
+        .update({
+          channel_type: 'qr_gateway',
+          gateway_instance_id: instanceName,
+          display_phone_number: targetPhone,
+          pairing_state: pairingCode ? 'pairing_code' : 'connecting',
+          qr_code_raw: null,
+          last_qr_generated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', channel.id);
+
+      return NextResponse.json({
+        ok: true,
+        method: 'pairing_code',
+        instanceName,
+        pairingCode,
+        phoneNumber: cleanPhone,
+        pairingState: pairingCode ? 'pairing_code' : 'connecting',
+        webhookUrl,
+        gatewayUrl: gatewayConfig.gateway_url,
+      });
+    }
+
+    // ------------------------------------------------------------
+    // Flow B: Scan QR Code (Default)
+    // ------------------------------------------------------------
     let qrcodeBase64: string | null = null;
     let pairingState = 'qrcode';
 
@@ -260,6 +347,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
+      method: 'qrcode',
       instanceName,
       qrcode: qrcodeBase64,
       pairingState,
