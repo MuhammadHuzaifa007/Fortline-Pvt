@@ -99,8 +99,9 @@ export async function GET(request: Request) {
         });
         if (connectRes.ok) {
           const connectData = await connectRes.json();
-          if (connectData?.base64) {
-            qrcodeBase64 = connectData.base64;
+          const b64 = connectData?.qrcode?.base64 || connectData?.base64;
+          if (b64) {
+            qrcodeBase64 = b64;
             liveState = 'qrcode';
           }
         }
@@ -202,6 +203,7 @@ export async function POST(request: Request) {
           instanceName,
           token: gatewayConfig.api_key,
           qrcode: true,
+          integration: 'WHATSAPP-BAILEYS',
           webhook: webhookUrl,
           webhook_by_events: true,
           events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
@@ -209,8 +211,9 @@ export async function POST(request: Request) {
       });
 
       const createData = await createRes.json();
-      if (createData?.qrcode?.base64) {
-        qrcodeBase64 = createData.qrcode.base64;
+      const b64 = createData?.qrcode?.base64 || createData?.base64;
+      if (b64) {
+        qrcodeBase64 = b64;
       }
     } catch {
       // Instance might already exist, try connect
@@ -222,8 +225,9 @@ export async function POST(request: Request) {
           headers: { apikey: gatewayConfig.api_key },
         });
         const connectData = await connectRes.json();
-        if (connectData?.base64) {
-          qrcodeBase64 = connectData.base64;
+        const b64 = connectData?.qrcode?.base64 || connectData?.base64;
+        if (b64) {
+          qrcodeBase64 = b64;
         }
       } catch (err: any) {
         console.warn('[gateway-instance] Gateway container unreachable:', err.message);
