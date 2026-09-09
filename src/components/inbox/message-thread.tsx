@@ -447,7 +447,15 @@ export function MessageThread({
         .eq("conversation_id", conversationId);
       if (cancelled) return;
       if (error) {
-        console.error("Failed to fetch reactions:", error);
+        if (
+          error.code === "PGRST205" ||
+          error.code === "42P01" ||
+          error.message?.includes("schema cache")
+        ) {
+          setReactions([]);
+          return;
+        }
+        console.warn("Failed to fetch reactions:", error.message || error.code || "Unknown error");
         return;
       }
       setReactions((data as MessageReaction[]) ?? []);
