@@ -21,7 +21,7 @@ async function gatewayFetch(
     try {
       const res = await fetch(`${baseUrl}${path}`, {
         ...options,
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(4000),
       });
       return res;
     } catch (err) {
@@ -35,7 +35,7 @@ function normalizePhoneNumber(raw: string): string {
   if (!raw) return '';
   let clean = raw.replace(/[^0-9]/g, '');
   if (clean.startsWith('00')) clean = clean.slice(2);
-  // Convert 03XXXXXXXXX (11 digits) to 923XXXXXXXXX
+  // Convert Pakistani 03XXXXXXXXX (11 digits) to 923XXXXXXXXX
   if (clean.startsWith('0') && clean.length === 11) {
     clean = '92' + clean.slice(1);
   }
@@ -101,12 +101,16 @@ export async function GET(request: Request) {
 
     const instanceName = channel.gateway_instance_id || `fortline_rep_${channel.id.slice(0, 8)}`;
     const gatewayConfig = await getGatewayConfig(ctx.supabase, ctx.accountId);
+    const host = request.headers.get('host') || 'localhost:3000';
+    const proto = host.includes('localhost') ? 'http' : 'https';
+    const webhookUrl = `${proto}://${host}/api/gateway/webhook`;
 
-    // Attempt to query Evolution API for fresh state
+    // Query Evolution API for connection state
     let liveState = channel.pairing_state || 'disconnected';
     let qrcodeBase64 = channel.qr_code_raw || null;
     let pairingCode: string | null = null;
     let isGatewayReachable = false;
+    let instanceExistsInGateway = false;
 
     try {
       const stateRes = await gatewayFetch(
@@ -118,40 +122,89 @@ export async function GET(request: Request) {
         }
       );
 
-      if (stateRes.ok || stateRes.status === 404) {
+      if (stateRes.ok) {
         isGatewayReachable = true;
-        if (stateRes.ok) {
-          const stateData = await stateRes.json();
-          const rawState = stateData?.instance?.state;
-          if (rawState === 'open') {
-            liveState = 'connected';
-            qrcodeBase64 = null;
-            pairingCode = null;
-          } else if (rawState === 'connecting') {
-            liveState = 'connecting';
-          } else {
-            liveState = 'disconnected';
+        instanceExistsInGateway = true;
+        const stateData = await stateRes.json();
+        const rawState = stateData?.instance?.state;
+        if (rawState === 'open') {
+          liveState = 'connected';
+          qrcodeBase64 = null;
+          pairingCode = null;
+
+          // Update DB if not marked connected
+          if (channel.pairing_state !== 'connected' || channel.connection_status !== 'connected') {
+            await ctx.supabase
+              .from('fortline_channels')
+              .update({
+                pairing_state: 'connected',
+                connection_status: 'connected',
+                qr_code_raw: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', channel.id);
           }
+        } else if (rawState === 'connecting') {
+          liveState = 'connecting';
+        } else {
+          liveState = 'disconnected';
         }
+      } else if (stateRes.status === 404) {
+        isGatewayReachable = true;
+        instanceExistsInGateway = false;
       }
     } catch {
-      // Gateway container not running or network error
+      // Gateway not reachable
     }
 
-    // If disconnected or in setup mode, check if we can fetch fresh connect state (QR or pairing code)
-    if (isGatewayReachable && liveState !== 'connected') {
+    // AUTO-PROVISION IF INSTANCE DOES NOT EXIST IN GATEWAY
+    // If the instance was not found in Evolution API (404), create it immediately so QR code is generated!
+    if (isGatewayReachable && !instanceExistsInGateway) {
       try {
-        const cleanPhone = normalizePhoneNumber(
-          channel.display_phone_number || channel.sales_member?.phone_number || ''
-        );
-        const connectUrl = cleanPhone
-          ? `/instance/connect/${instanceName}?number=${cleanPhone}`
-          : `/instance/connect/${instanceName}`;
-
-        const connectRes = await gatewayFetch(gatewayConfig.gateway_url, connectUrl, {
-          headers: { apikey: gatewayConfig.api_key },
-          cache: 'no-store',
+        const createRes = await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: gatewayConfig.api_key,
+          },
+          body: JSON.stringify({
+            instanceName,
+            token: gatewayConfig.api_key,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS',
+            webhook: {
+              url: webhookUrl,
+              byEvents: false,
+              events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+            },
+          }),
         });
+
+        if (createRes.ok || createRes.status === 201) {
+          const createData = await createRes.json();
+          const b64 = createData?.qrcode?.base64 || createData?.base64;
+          if (b64) {
+            qrcodeBase64 = b64;
+            liveState = 'qrcode';
+          }
+          instanceExistsInGateway = true;
+        }
+      } catch (err: any) {
+        console.warn('[gateway-instance] Auto-create failed:', err.message);
+      }
+    }
+
+    // If instance exists but disconnected/not open, fetch fresh QR code
+    if (isGatewayReachable && liveState !== 'connected' && !qrcodeBase64) {
+      try {
+        const connectRes = await gatewayFetch(
+          gatewayConfig.gateway_url,
+          `/instance/connect/${instanceName}`,
+          {
+            headers: { apikey: gatewayConfig.api_key },
+            cache: 'no-store',
+          }
+        );
 
         if (connectRes.ok) {
           const connectData = await connectRes.json();
@@ -173,8 +226,21 @@ export async function GET(request: Request) {
           }
         }
       } catch {
-        // Fallback to DB
+        // Fallback to existing
       }
+    }
+
+    // Keep DB updated with fresh QR code if found
+    if (qrcodeBase64 && qrcodeBase64 !== channel.qr_code_raw) {
+      await ctx.supabase
+        .from('fortline_channels')
+        .update({
+          qr_code_raw: qrcodeBase64,
+          pairing_state: liveState,
+          last_qr_generated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', channel.id);
     }
 
     return NextResponse.json({
@@ -272,13 +338,23 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              'Please provide a valid phone number (e.g. +92 300 1234567 or 03001234567) to generate a pairing code.',
+              'Please provide a valid phone number (e.g. +92 331 3081859 or 03313081859) to generate a pairing code.',
           },
           { status: 400 }
         );
       }
 
-      // 1. Create or ensure instance in Evolution API with qrcode: false & number: cleanPhone
+      // Recreate or ensure instance in Evolution API with qrcode: false & number: cleanPhone
+      try {
+        await gatewayFetch(gatewayConfig.gateway_url, `/instance/delete/${instanceName}`, {
+          method: 'DELETE',
+          headers: { apikey: gatewayConfig.api_key },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      } catch {
+        // Ignore if didn't exist
+      }
+
       try {
         await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
           method: 'POST',
@@ -292,21 +368,21 @@ export async function POST(request: Request) {
             qrcode: false,
             number: cleanPhone,
             integration: 'WHATSAPP-BAILEYS',
-            webhook: webhookUrl,
-            webhook_by_events: true,
-            events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+            webhook: {
+              url: webhookUrl,
+              byEvents: false,
+              events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+            },
           }),
         });
-      } catch {
-        // Instance might already exist
+      } catch (err: any) {
+        console.warn('[gateway-instance] Create pair instance warning:', err.message);
       }
 
-      // 2. Poll for pairing code from /instance/connect/:instanceName?number=...
+      // Poll for 8-character pairing code
       let pairingCode: string | null = null;
       for (let attempt = 0; attempt < 5; attempt++) {
-        if (attempt > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         try {
           const connectRes = await gatewayFetch(
             gatewayConfig.gateway_url,
@@ -363,7 +439,17 @@ export async function POST(request: Request) {
     // Flow B: Scan QR Code (Default)
     // ------------------------------------------------------------
     let qrcodeBase64: string | null = null;
-    let pairingState = 'qrcode';
+
+    // Delete old instance if needed to ensure fresh QR session
+    try {
+      await gatewayFetch(gatewayConfig.gateway_url, `/instance/delete/${instanceName}`, {
+        method: 'DELETE',
+        headers: { apikey: gatewayConfig.api_key },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    } catch {
+      // Ignore
+    }
 
     try {
       const createRes = await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
@@ -377,26 +463,28 @@ export async function POST(request: Request) {
           token: gatewayConfig.api_key,
           qrcode: true,
           integration: 'WHATSAPP-BAILEYS',
-          webhook: webhookUrl,
-          webhook_by_events: true,
-          events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+          webhook: {
+            url: webhookUrl,
+            byEvents: false,
+            events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+          },
         }),
       });
 
-      const createData = await createRes.json();
-      const b64 = createData?.qrcode?.base64 || createData?.base64;
-      if (b64) {
-        qrcodeBase64 = b64;
+      if (createRes.ok || createRes.status === 201) {
+        const createData = await createRes.json();
+        const b64 = createData?.qrcode?.base64 || createData?.base64;
+        if (b64) {
+          qrcodeBase64 = b64;
+        }
       }
-    } catch {
-      // Instance might already exist, try connect
+    } catch (err: any) {
+      console.warn('[gateway-instance] QR Create warning:', err.message);
     }
 
     if (!qrcodeBase64) {
       for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         try {
           const connectRes = await gatewayFetch(
             gatewayConfig.gateway_url,
@@ -415,7 +503,7 @@ export async function POST(request: Request) {
             }
           }
         } catch (err: any) {
-          console.warn('[gateway-instance] Gateway container unreachable:', err.message);
+          console.warn('[gateway-instance] Connect retry warning:', err.message);
           break;
         }
       }
@@ -439,7 +527,7 @@ export async function POST(request: Request) {
       method: 'qrcode',
       instanceName,
       qrcode: qrcodeBase64,
-      pairingState,
+      pairingState: qrcodeBase64 ? 'qrcode' : 'connecting',
       webhookUrl,
       gatewayUrl: gatewayConfig.gateway_url,
     });
@@ -454,6 +542,10 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const channelId = searchParams.get('channelId');
     const salesMemberId = searchParams.get('salesMemberId');
+
+    if (!channelId && !salesMemberId) {
+      return NextResponse.json({ error: 'channelId or salesMemberId required' }, { status: 400 });
+    }
 
     let query = ctx.supabase
       .from('fortline_channels')
@@ -477,7 +569,15 @@ export async function DELETE(request: Request) {
           headers: { apikey: gatewayConfig.api_key },
         });
       } catch {
-        // Ignore container network error
+        // Ignore
+      }
+      try {
+        await gatewayFetch(gatewayConfig.gateway_url, `/instance/delete/${instanceName}`, {
+          method: 'DELETE',
+          headers: { apikey: gatewayConfig.api_key },
+        });
+      } catch {
+        // Ignore
       }
     }
 
@@ -491,9 +591,18 @@ export async function DELETE(request: Request) {
       })
       .eq('id', channel.id);
 
+    if (channel.sales_member_id) {
+      await ctx.supabase
+        .from('fortline_sales_members')
+        .update({
+          presence_status: 'offline',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', channel.sales_member_id);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return toErrorResponse(err);
   }
 }
-
