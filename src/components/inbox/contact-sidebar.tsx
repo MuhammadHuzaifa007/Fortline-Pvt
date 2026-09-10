@@ -212,6 +212,10 @@ export function ContactSidebar({
   }
 
   const displayName = contact.name || contact.phone;
+  const isGroup =
+    contact.phone.includes("@g.us") ||
+    contact.phone.startsWith("120363") ||
+    contact.phone.startsWith("+120363");
   const initials = displayName.charAt(0).toUpperCase();
 
   return (
@@ -227,6 +231,8 @@ export function ContactSidebar({
                   alt={displayName}
                   className="h-16 w-16 rounded-full object-cover"
                 />
+              ) : isGroup ? (
+                <Users className="h-8 w-8 text-primary" />
               ) : (
                 initials
               )}
@@ -234,6 +240,12 @@ export function ContactSidebar({
             <h3 className="mt-3 text-sm font-semibold text-foreground">
               {displayName}
             </h3>
+            {isGroup && (
+              <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-500 border border-blue-500/20">
+                <Users className="h-3 w-3" />
+                <span>WhatsApp Group</span>
+              </div>
+            )}
             {contact.category && (
               <div className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary border border-primary/20">
                 <Briefcase className="h-3 w-3" />
@@ -269,20 +281,44 @@ export function ContactSidebar({
             )}
           </div>
 
-          {/* Phone */}
+          {/* Phone / Group Channel */}
           <div className="mt-4 space-y-2">
-            <button
-              onClick={handleCopyPhone}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
-            >
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
-              {copied ? (
-                <Check className="h-3 w-3 text-primary" />
-              ) : (
-                <Copy className="h-3 w-3 text-muted-foreground" />
-              )}
-            </button>
+            {isGroup ? (
+              <div className="flex w-full items-center gap-2 rounded-lg bg-muted/40 p-2.5 text-xs text-muted-foreground">
+                <Users className="h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="font-medium text-foreground">Group Channel</div>
+                  <div className="truncate text-[10px] text-muted-foreground" title={contact.phone}>
+                    {contact.phone}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyPhone}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  title="Copy Group ID"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleCopyPhone}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
+              >
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="flex-1 text-left">{contact.phone}</span>
+                {copied ? (
+                  <Check className="h-3 w-3 text-primary" />
+                ) : (
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                )}
+              </button>
+            )}
 
             {contact.email && (
               <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">

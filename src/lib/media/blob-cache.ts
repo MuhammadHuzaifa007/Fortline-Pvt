@@ -31,13 +31,16 @@ const GATEWAY_PROXY_PREFIX = "/api/gateway/media/";
  * Returns a displayable URL for a message. Encrypted WhatsApp CDN URLs
  * (https://mmg.whatsapp.net/...) are redirected through our gateway media decryption proxy.
  */
-export function resolveDisplayMediaUrl(message: { id: string; message_id?: string; media_url?: string }): string | undefined {
-  if (!message.media_url) return undefined;
-  if (message.media_url.startsWith('data:')) return message.media_url;
-  if (message.media_url.startsWith('https://mmg.whatsapp.net') || message.media_url.startsWith(GATEWAY_PROXY_PREFIX)) {
+export function resolveDisplayMediaUrl(message: { id: string; message_id?: string; media_url?: string | null; media_type?: string | null }): string | undefined {
+  if (message.media_url?.startsWith('data:')) return message.media_url;
+  if (message.media_url?.startsWith('https://mmg.whatsapp.net') || message.media_url?.startsWith(GATEWAY_PROXY_PREFIX)) {
     return `${GATEWAY_PROXY_PREFIX}${message.id}`;
   }
-  return message.media_url;
+  if (message.media_url) return message.media_url;
+  if (message.media_type && message.media_type !== 'text') {
+    return `${GATEWAY_PROXY_PREFIX}${message.id}`;
+  }
+  return undefined;
 }
 
 /**

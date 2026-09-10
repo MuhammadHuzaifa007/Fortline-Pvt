@@ -338,7 +338,7 @@ export function MediaAudioBubble({
     return result;
   }, [message.id]);
 
-  if (!message.media_url) {
+  if (!displayUrl) {
     return <MediaUnavailable label={t("audio")} t={t} />;
   }
 
