@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from 'react'
-import { BellRing, Save, Loader2, ShieldAlert, CheckCircle2, MessageSquare, Mail, AlertTriangle } from 'lucide-react'
+import { BellRing, Save, Loader2, ShieldAlert, CheckCircle2, Mail, AlertTriangle } from 'lucide-react'
+import { WhatsAppChatsIcon } from '@/components/icons/whatsapp-business-logo'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -115,7 +116,7 @@ export function FortlineNotificationsSettings() {
             <label className="flex items-start justify-between rounded-lg border border-border/80 bg-background/50 p-4 transition-colors hover:bg-muted/30 cursor-pointer">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="size-4 text-red-500" />
+                  <WhatsAppChatsIcon className="size-4 text-red-500" />
                   <span className="text-sm font-medium text-foreground">Channel Disconnect / Webhook Drop</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -158,7 +159,7 @@ export function FortlineNotificationsSettings() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ceo-wa" className="flex items-center gap-1.5 text-xs font-medium">
-                <MessageSquare className="size-3.5 text-primary" />
+                <WhatsAppChatsIcon className="size-3.5 text-primary" />
                 CEO WhatsApp Phone Number
               </Label>
               <Input

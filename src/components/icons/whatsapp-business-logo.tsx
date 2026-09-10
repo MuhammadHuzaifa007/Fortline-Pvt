@@ -21,7 +21,7 @@ export function WhatsAppChatsIcon({ className = "h-5 w-5", ...props }: IconProps
       className={className}
       {...props}
     >
-      <path d="M12 3.5C7.306 3.5 3.5 6.977 3.5 11.266c0 1.638.567 3.153 1.54 4.387L4 20l4.524-1.042c1.066.52 2.274.808 3.476.808 4.694 0 8.5-3.477 8.5-7.766S16.694 3.5 12 3.5z" />
+      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
     </svg>
   );
 }

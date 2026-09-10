@@ -42,6 +42,18 @@ function normalizePhoneNumber(raw: string): string {
   return clean;
 }
 
+function getWebhookUrl(request: Request): string {
+  const host = request.headers.get('host') || '';
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    return `https://${host}/api/gateway/webhook`;
+  }
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (siteUrl && !siteUrl.includes('localhost') && !siteUrl.includes('127.0.0.1')) {
+    return `${siteUrl.replace(/\/$/, '')}/api/gateway/webhook`;
+  }
+  return 'http://host.docker.internal:3000/api/gateway/webhook';
+}
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireCeo();
@@ -100,9 +112,7 @@ export async function GET(request: Request) {
 
     const instanceName = channel.gateway_instance_id || `fortline_rep_${channel.id.slice(0, 8)}`;
     const gatewayConfig = await getGatewayConfig(ctx.supabase, ctx.accountId);
-    const host = request.headers.get('host') || 'localhost:3000';
-    const proto = host.includes('localhost') ? 'http' : 'https';
-    const webhookUrl = `${proto}://${host}/api/gateway/webhook`;
+    const webhookUrl = getWebhookUrl(request);
 
     // Query Evolution API for connection state
     let liveState = channel.pairing_state || 'disconnected';
@@ -316,9 +326,7 @@ export async function POST(request: Request) {
 
     const instanceName = channel.gateway_instance_id || `fortline_rep_${channel.id.slice(0, 8)}`;
     const gatewayConfig = await getGatewayConfig(ctx.supabase, ctx.accountId);
-    const host = request.headers.get('host') || 'localhost:3000';
-    const proto = host.includes('localhost') ? 'http' : 'https';
-    const webhookUrl = `${proto}://${host}/api/gateway/webhook`;
+    const webhookUrl = getWebhookUrl(request);
 
     // ------------------------------------------------------------
     // Flow A: Pairing with Phone Number (8-Digit Code / OTP)

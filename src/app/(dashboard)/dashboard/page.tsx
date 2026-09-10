@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   RotateCcw,
-  MessageSquare,
   ShieldCheck,
   Calendar,
   Building2,
 } from 'lucide-react'
 import Link from 'next/link'
+import { WhatsAppChatsIcon } from '@/components/icons/whatsapp-business-logo'
 import { FortlineKpiGrid } from '@/components/dashboard/fortline-kpi-grid'
 import { SalesMembersTable } from '@/components/dashboard/sales-members-table'
 import { ExceptionsCard } from '@/components/dashboard/exceptions-card'
@@ -142,7 +142,7 @@ export default function DashboardPage() {
             href="/inbox"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
           >
-            <MessageSquare className="size-3.5" />
+            <WhatsAppChatsIcon className="size-3.5" />
             <span>Open CEO Inbox</span>
           </Link>
         </div>

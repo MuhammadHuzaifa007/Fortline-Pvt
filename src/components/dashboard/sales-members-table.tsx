@@ -17,9 +17,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FortlineSalesMemberWithPresence } from '@/types/fortline'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { SalesChannelQrDialog } from '@/components/settings/sales-channel-qr-dialog'
+import { WhatsAppChatsIcon } from '@/components/icons/whatsapp-business-logo'
 
 interface SalesMembersTableProps {
   salesMembers: FortlineSalesMemberWithPresence[]
@@ -350,7 +350,7 @@ export function SalesMembersTable({
                           className="inline-flex items-center gap-1 px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-medium transition-colors"
                           title="Open WhatsApp conversations for this rep"
                         >
-                          <MessageSquare className="size-3" />
+                          <WhatsAppChatsIcon className="size-3" />
                           <span>Inbox</span>
                         </Link>
                       </div>
