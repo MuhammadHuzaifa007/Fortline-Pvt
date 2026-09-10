@@ -167,7 +167,7 @@ export function SalesChannelQrDialog({
       return
     }
 
-    if (pairingState === 'connected') return
+    if (pairingState === 'connected' || pairingState === 'expired') return
     if (!qrcode && !pairingCode) return
 
     const timer = setInterval(() => {
@@ -210,11 +210,12 @@ export function SalesChannelQrDialog({
     if (!member) return
     setActionLoading(true)
     setJustConnected(false)
+    setPairingState('connecting')
     try {
       const res = await fetch('/api/gateway/instance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ salesMemberId: member.id, method: 'qrcode' }),
+        body: JSON.stringify({ salesMemberId: member.id, method: 'qrcode', refresh: true }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -226,7 +227,7 @@ export function SalesChannelQrDialog({
         setInstanceName(data.instanceName)
         setSecondsRemaining(COUNTDOWN_SECONDS)
         if (data.qrcode) {
-          toast.success('Generated fresh WhatsApp QR code!')
+          toast.success('Generated fresh WhatsApp QR code! Valid for 60s.')
         } else {
           toast.info('Starting WhatsApp gateway session. QR code incoming...')
           setTimeout(() => fetchStatus(false), 1200)
@@ -234,9 +235,11 @@ export function SalesChannelQrDialog({
       } else {
         const err = await res.json()
         toast.error(err.error || 'Failed to generate QR code')
+        setPairingState('expired')
       }
     } catch {
       toast.error('Network error requesting QR code')
+      setPairingState('expired')
     } finally {
       setActionLoading(false)
     }
@@ -258,6 +261,7 @@ export function SalesChannelQrDialog({
 
     setActionLoading(true)
     setJustConnected(false)
+    setPairingState('connecting')
     try {
       const res = await fetch('/api/gateway/instance', {
         method: 'POST',
@@ -266,6 +270,7 @@ export function SalesChannelQrDialog({
           salesMemberId: member.id,
           method: 'pairing_code',
           phoneNumber: cleanPhone,
+          refresh: true,
         }),
       })
       if (res.ok) {
@@ -276,7 +281,7 @@ export function SalesChannelQrDialog({
           setPairingState('pairing_code')
           prevPairingStateRef.current = 'pairing_code'
           setSecondsRemaining(COUNTDOWN_SECONDS)
-          toast.success('8-Digit Pairing Code Generated! Enter it on WhatsApp.')
+          toast.success('Fresh 8-Digit Pairing Code Generated! Valid for 60s.')
         } else {
           setPairingState('connecting')
           toast.info('Generating WhatsApp pairing code... Please wait 2 seconds')
@@ -286,9 +291,11 @@ export function SalesChannelQrDialog({
       } else {
         const err = await res.json()
         toast.error(err.error || 'Failed to request pairing code')
+        setPairingState('expired')
       }
     } catch {
       toast.error('Network error requesting pairing code')
+      setPairingState('expired')
     } finally {
       setActionLoading(false)
     }
@@ -344,20 +351,20 @@ export function SalesChannelQrDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg max-h-[92dvh] sm:max-h-[88dvh] flex flex-col p-0 overflow-hidden shadow-2xl border-border bg-card">
+        <DialogHeader className="p-4 sm:p-5 pb-3 border-b border-border/60 shrink-0 bg-background/95 backdrop-blur-xs pr-10 text-left">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Smartphone className="size-5 text-primary" />
             <span>Connect WhatsApp: {member.name}</span>
           </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription className="text-xs text-muted-foreground">
             Link {member.name}'s phone line to Fortline CRM using live QR Code or 8-digit Pairing Code.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 pt-1">
+        <div className="px-4 sm:px-5 py-3.5 overflow-y-auto flex-1 space-y-3.5 overscroll-contain">
           {/* Member info banner */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/60 border border-border text-xs">
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/60 border border-border text-xs">
             <div>
               <div className="font-semibold text-foreground">{member.name}</div>
               <div className="text-muted-foreground font-mono">{member.phone_number || 'No default number'}</div>
@@ -389,7 +396,10 @@ export function SalesChannelQrDialog({
             <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg border border-border text-xs">
               <button
                 type="button"
-                onClick={() => setActiveTab('qrcode')}
+                onClick={() => {
+                  setActiveTab('qrcode')
+                  if (pairingState === 'expired') requestQrCode()
+                }}
                 className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all ${
                   activeTab === 'qrcode'
                     ? 'bg-background text-foreground shadow-xs'
@@ -401,7 +411,10 @@ export function SalesChannelQrDialog({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('phone_code')}
+                onClick={() => {
+                  setActiveTab('phone_code')
+                  if (pairingState === 'expired') requestPairingCode()
+                }}
                 className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all ${
                   activeTab === 'phone_code'
                     ? 'bg-background text-foreground shadow-xs'
@@ -415,9 +428,9 @@ export function SalesChannelQrDialog({
           )}
 
           {/* Main Display Area */}
-          <div className="flex flex-col items-center justify-center p-5 rounded-xl border border-border bg-muted/30 text-center min-h-[280px]">
+          <div className="flex flex-col items-center justify-center p-4 sm:p-5 rounded-xl border border-border bg-muted/30 text-center min-h-[260px]">
             {initialLoading && !qrcode && !pairingCode ? (
-              <div className="space-y-2 text-muted-foreground py-10">
+              <div className="space-y-2 text-muted-foreground py-8">
                 <Loader2 className="size-8 animate-spin mx-auto text-primary" />
                 <p className="text-xs">Initializing WhatsApp session...</p>
               </div>
@@ -459,24 +472,38 @@ export function SalesChannelQrDialog({
               </div>
             ) : pairingState === 'expired' ? (
               /* EXPIRED STATE (60S TIMEOUT REACHED) */
-              <div className="space-y-3 py-6 animate-in fade-in zoom-in-95">
-                <div className="size-12 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
-                  <Clock className="size-6" />
+              <div className="space-y-3.5 py-6 animate-in fade-in zoom-in-95 text-center">
+                <div className="size-14 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mx-auto shadow-xs animate-pulse">
+                  <Clock className="size-7" />
                 </div>
-                <div>
-                  <h4 className="font-semibold text-foreground text-sm">Verification Window Expired</h4>
-                  <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                    The 60-second window for {activeTab === 'phone_code' ? 'pairing code' : 'QR code'} elapsed. Click below to generate a fresh code instantly.
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-semibold border border-amber-500/20 mb-1">
+                    <AlertTriangle className="size-3" />
+                    <span>60-Second Window Expired</span>
+                  </div>
+                  <h4 className="font-bold text-foreground text-base">
+                    {activeTab === 'phone_code' ? 'Pairing Code Expired' : 'QR Code Expired'}
+                  </h4>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                    {activeTab === 'phone_code'
+                      ? 'The 8-character pairing code has expired. WhatsApp pairing codes are valid for only 60 seconds. Click below to generate a fresh new code.'
+                      : 'The WhatsApp QR code has expired. WhatsApp QR codes refresh periodically for security. Click below to generate a fresh QR code.'}
                   </p>
                 </div>
                 <Button
-                  size="sm"
+                  size="default"
                   onClick={activeTab === 'phone_code' ? requestPairingCode : requestQrCode}
                   disabled={actionLoading}
-                  className="gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="gap-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm px-5"
                 >
-                  <RefreshCw className={`size-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
-                  <span>Regenerate Fresh Code</span>
+                  <RefreshCw className={`size-4 ${actionLoading ? 'animate-spin' : ''}`} />
+                  <span>
+                    {actionLoading
+                      ? 'Generating New Code...'
+                      : activeTab === 'phone_code'
+                        ? 'Generate New Pairing Code'
+                        : 'Generate New QR Code'}
+                  </span>
                 </Button>
               </div>
             ) : activeTab === 'phone_code' ? (
@@ -489,24 +516,24 @@ export function SalesChannelQrDialog({
                       Enter this 8-character code on <span className="font-semibold text-foreground">{member.name}'s WhatsApp</span>:
                     </div>
 
-                    {/* Large Code Display */}
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="flex gap-1">
+                    {/* Responsive Code Display */}
+                    <div className="flex items-center justify-center gap-1 sm:gap-2">
+                      <div className="flex gap-1 sm:gap-1.5">
                         {displayCodePart1.split('').map((char, i) => (
                           <span
                             key={`p1-${i}`}
-                            className="size-10 rounded-lg bg-background border-2 border-emerald-500/60 font-mono font-bold text-lg text-foreground flex items-center justify-center shadow-xs"
+                            className="w-7 h-9 sm:w-9 sm:h-11 rounded-lg bg-background border-2 border-emerald-500/60 font-mono font-bold text-base sm:text-lg text-foreground flex items-center justify-center shadow-xs"
                           >
                             {char}
                           </span>
                         ))}
                       </div>
-                      <span className="text-xl font-bold text-muted-foreground px-1">-</span>
-                      <div className="flex gap-1">
+                      <span className="text-xl font-bold text-muted-foreground px-0.5 sm:px-1">-</span>
+                      <div className="flex gap-1 sm:gap-1.5">
                         {displayCodePart2.split('').map((char, i) => (
                           <span
                             key={`p2-${i}`}
-                            className="size-10 rounded-lg bg-background border-2 border-emerald-500/60 font-mono font-bold text-lg text-foreground flex items-center justify-center shadow-xs"
+                            className="w-7 h-9 sm:w-9 sm:h-11 rounded-lg bg-background border-2 border-emerald-500/60 font-mono font-bold text-base sm:text-lg text-foreground flex items-center justify-center shadow-xs"
                           >
                             {char}
                           </span>
@@ -521,7 +548,7 @@ export function SalesChannelQrDialog({
                           <Clock className="size-3 text-emerald-500" />
                           <span>Code expires in: {secondsRemaining}s</span>
                         </span>
-                        <span className="text-[10px]">{Math.round(countdownProgress)}%</span>
+                        <span className="text-[10px] font-mono">{Math.round(countdownProgress)}%</span>
                       </div>
                       <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden border border-border">
                         <div
@@ -546,7 +573,7 @@ export function SalesChannelQrDialog({
                         variant="ghost"
                         onClick={requestPairingCode}
                         disabled={actionLoading}
-                        className="text-xs gap-1.5 h-8 text-muted-foreground"
+                        className="text-xs gap-1.5 h-8 text-muted-foreground hover:text-foreground"
                       >
                         <RefreshCw className={`size-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
                         <span>New Code</span>
@@ -618,7 +645,7 @@ export function SalesChannelQrDialog({
                       <img
                         src={qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`}
                         alt="WhatsApp QR Code"
-                        className="size-52 rounded-lg"
+                        className="size-48 sm:size-52 rounded-lg object-contain"
                       />
                       {actionLoading && (
                         <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex items-center justify-center rounded-xl">
@@ -634,7 +661,7 @@ export function SalesChannelQrDialog({
                           <Clock className="size-3 text-primary" />
                           <span>QR valid for: {secondsRemaining}s</span>
                         </span>
-                        <span className="text-[10px]">{Math.round(countdownProgress)}%</span>
+                        <span className="text-[10px] font-mono">{Math.round(countdownProgress)}%</span>
                       </div>
                       <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden border border-border">
                         <div
@@ -686,7 +713,7 @@ export function SalesChannelQrDialog({
           </div>
 
           {/* Step-by-Step Instructions (With 60-Second Window Reference) */}
-          <div className="space-y-2 p-3 rounded-lg bg-card border border-border text-xs">
+          <div className="space-y-2 p-3 rounded-lg bg-card border border-border text-xs text-left">
             <div className="font-semibold text-foreground flex items-center gap-1.5">
               <Info className="size-3.5 text-primary" />
               <span>
@@ -717,31 +744,47 @@ export function SalesChannelQrDialog({
           </div>
         </div>
 
-        <DialogFooter className="pt-2 flex items-center justify-between sm:justify-between">
+        <DialogFooter className="p-3 sm:p-4 pt-2.5 border-t border-border/60 shrink-0 bg-background/95 backdrop-blur-xs flex items-center justify-between gap-2">
           <div>
-            {activeTab === 'qrcode' && qrcode && pairingState !== 'connected' && (
+            {pairingState === 'expired' ? (
               <Button
-                variant="outline"
                 size="sm"
-                onClick={requestQrCode}
+                onClick={activeTab === 'phone_code' ? requestPairingCode : requestQrCode}
                 disabled={actionLoading}
-                className="text-xs gap-1"
+                className="text-xs gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <RefreshCw className={`size-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
-                <span>Refresh QR</span>
+                <span>
+                  {activeTab === 'phone_code' ? 'Generate New Code' : 'Generate New QR Code'}
+                </span>
               </Button>
-            )}
-            {activeTab === 'phone_code' && pairingCode && pairingState !== 'connected' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={requestPairingCode}
-                disabled={actionLoading}
-                className="text-xs gap-1"
-              >
-                <RefreshCw className={`size-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
-                <span>New Pairing Code</span>
-              </Button>
+            ) : (
+              <>
+                {activeTab === 'qrcode' && qrcode && pairingState !== 'connected' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={requestQrCode}
+                    disabled={actionLoading}
+                    className="text-xs gap-1"
+                  >
+                    <RefreshCw className={`size-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
+                    <span>Refresh QR</span>
+                  </Button>
+                )}
+                {activeTab === 'phone_code' && pairingCode && pairingState !== 'connected' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={requestPairingCode}
+                    disabled={actionLoading}
+                    className="text-xs gap-1"
+                  >
+                    <RefreshCw className={`size-3.5 ${actionLoading ? 'animate-spin' : ''}`} />
+                    <span>New Pairing Code</span>
+                  </Button>
+                )}
+              </>
             )}
           </div>
           <Button

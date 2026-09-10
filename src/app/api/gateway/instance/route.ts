@@ -487,8 +487,10 @@ export async function POST(request: Request) {
       // Gateway unreachable
     }
 
-    // If instance exists, fetch active/fresh QR from /instance/connect without deleting database record
-    if (instanceExists) {
+    const forceRefresh = body.refresh === true;
+
+    // If instance exists and not forced refresh, fetch active QR from /instance/connect
+    if (instanceExists && !forceRefresh) {
       try {
         const connectRes = await gatewayFetch(
           gatewayConfig.gateway_url,
@@ -510,8 +512,18 @@ export async function POST(request: Request) {
       }
     }
 
-    // If instance does not exist or failed to connect, provision it cleanly
-    if (!qrcodeBase64 && !instanceExists) {
+    // If forceRefresh or no QR returned from connect, cleanly recreate instance for fresh QR
+    if (!qrcodeBase64) {
+      try {
+        await gatewayFetch(gatewayConfig.gateway_url, `/instance/delete/${instanceName}`, {
+          method: 'DELETE',
+          headers: { apikey: gatewayConfig.api_key },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch {
+        // Ignore if delete failed
+      }
+
       try {
         const createRes = await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
           method: 'POST',
