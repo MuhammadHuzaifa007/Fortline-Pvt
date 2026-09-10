@@ -10,7 +10,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Flame } from "lucide-react";
+import { Search, ChevronDown, X, Flame, MessageCircle, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,16 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 };
 
 type InboxFilter = ConversationStatus | "all" | "unread" | "unanswered" | "overdue";
+type ChatTab = "direct" | "groups";
+
+/** Heuristic: treat a conversation as a group if its contact phone
+ *  contains `@g.us` (WhatsApp group JID format) or if the DB-level
+ *  `chat_type` field is explicitly set to `'group'`. */
+function isGroupConversation(conv: Conversation): boolean {
+  if (conv.chat_type === "group") return true;
+  const phone = conv.contact?.phone ?? "";
+  return phone.includes("@g.us");
+}
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -68,6 +78,7 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>(initialFilter ?? "all");
   const [loading, setLoading] = useState(true);
+  const [chatTab, setChatTab] = useState<ChatTab>("direct");
 
   // Sync initialFilter prop if it changes
   useEffect(() => {
@@ -202,6 +213,13 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = conversations;
 
+    // Tab-level split: direct vs groups
+    if (chatTab === "groups") {
+      result = result.filter(isGroupConversation);
+    } else {
+      result = result.filter((c) => !isGroupConversation(c));
+    }
+
     if (filter === "unanswered") {
       result = result.filter((c) => c.is_unanswered === true);
     } else if (filter === "overdue") {
@@ -240,7 +258,13 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany, selectedSalesMemberId]);
+  }, [conversations, filter, search, selectedTagIds, selectedCompany, selectedSalesMemberId, chatTab]);
+
+  // Count groups so the tab can show a badge
+  const groupCount = useMemo(
+    () => conversations.filter(isGroupConversation).length,
+    [conversations]
+  );
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -441,6 +465,39 @@ export function ConversationList({
         )}
       </div>
 
+        {/* ── Chats / Groups tab bar ── */}
+        <div className="flex border-t border-border">
+          <button
+            onClick={() => setChatTab("direct")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
+              chatTab === "direct"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            {t("tabChats")}
+          </button>
+          <button
+            onClick={() => setChatTab("groups")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
+              chatTab === "groups"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Users className="h-3.5 w-3.5" />
+            {t("tabGroups")}
+            {groupCount > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-bold">
+                {groupCount}
+              </span>
+            )}
+          </button>
+        </div>
+
       {/* Conversation Items.
           `min-h-0` is load-bearing: a flex child defaults to
           min-height:auto, so without it this ScrollArea grows to fit
@@ -454,7 +511,9 @@ export function ConversationList({
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">{t("noConversations")}</p>
+            <p className="text-sm text-muted-foreground">
+              {chatTab === "groups" ? t("noGroupsFound") : t("noConversations")}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col">
@@ -493,6 +552,8 @@ function ConversationItem({
   const displayName = contact?.name || contact?.phone || t("unknown");
   const initials = displayName.charAt(0).toUpperCase();
   const salesMember = conversation.assigned_sales_member;
+  const isGroup = isGroupConversation(conversation);
+  const [avatarError, setAvatarError] = useState(false);
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -514,11 +575,18 @@ function ConversationItem({
     >
       {/* Avatar */}
       <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
-        {contact?.avatar_url ? (
+        {isGroup ? (
+          /* Group avatar — multi-user icon */
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600/20">
+            <Users className="h-5 w-5 text-teal-500" />
+          </div>
+        ) : contact?.avatar_url && !avatarError ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={contact.avatar_url}
             alt={displayName}
             className="h-10 w-10 rounded-full object-cover"
+            onError={() => setAvatarError(true)}
           />
         ) : (
           initials
@@ -530,6 +598,12 @@ function ConversationItem({
         <div className="flex items-center justify-between gap-1.5">
           <span className="truncate text-sm font-medium text-foreground flex items-center gap-1.5 flex-wrap">
             <span className="truncate">{displayName}</span>
+            {isGroup && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-teal-500/15 px-1.5 py-0.5 text-[9px] font-bold text-teal-500 border border-teal-500/30 shrink-0">
+                <Users className="h-2.5 w-2.5" />
+                {t("groupBadge")}
+              </span>
+            )}
             {conversation.is_unanswered && (
               <span className="inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-500 border border-amber-500/30 shrink-0">
                 Unanswered

@@ -191,6 +191,8 @@ export interface Conversation {
   ai_autoreply_disabled?: boolean;
   ai_reply_count?: number;
   ai_handoff_summary?: string | null;
+  /** Heuristic or DB-driven chat type. Absent ⇒ treated as `'direct'`. */
+  chat_type?: 'direct' | 'group';
 }
 
 // ============================================================

@@ -142,7 +142,11 @@
       "clearAll": "Clear all",
       "noConversations": "No conversations found",
       "noMessagesYet": "No messages yet",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "tabChats": "Chats",
+      "tabGroups": "Groups",
+      "groupBadge": "Group",
+      "noGroupsFound": "No group conversations found"
     },
     "messageThread": {
       "backToConversations": "Back to conversations",
