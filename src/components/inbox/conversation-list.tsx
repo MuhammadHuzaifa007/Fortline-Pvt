@@ -39,7 +39,7 @@ type ChatTab = "direct" | "groups";
 function isGroupConversation(conv: Conversation): boolean {
   if (conv.chat_type === "group") return true;
   const phone = conv.contact?.phone ?? "";
-  return phone.includes("@g.us");
+  return phone.includes("@g.us") || phone.startsWith("120363") || phone.startsWith("+120363");
 }
 
 interface ConversationListProps {

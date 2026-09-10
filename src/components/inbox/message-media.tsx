@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 import { downloadMediaMessage } from "@/lib/media/download";
 import { useMediaBlobUrl } from "@/hooks/use-media-blob-url";
+import { resolveDisplayMediaUrl } from "@/lib/media/blob-cache";
 
 /**
  * The media renderers behind `<MessageBubble>`'s image / video / audio /
@@ -121,7 +122,8 @@ export function MediaImageBubble({
   onOpen?: () => void;
   t: Translator;
 }) {
-  const { src, status } = useMediaBlobUrl(message.media_url);
+  const displayUrl = resolveDisplayMediaUrl(message);
+  const { src, status } = useMediaBlobUrl(displayUrl);
   // The fetch can succeed and the bytes still not be a decodable image.
   const [broken, setBroken] = useState(false);
   const { downloading, download } = useMediaDownload(message, t);
@@ -191,12 +193,14 @@ export function MediaVideoBubble({
 }) {
   const { downloading, download } = useMediaDownload(message, t);
 
+  const displayUrl = resolveDisplayMediaUrl(message) || message.media_url;
+
   return (
     <div className="relative w-fit">
       {/* Plain URL, not a blob: the element should stream rather than wait
           for up to 16 MB to land. */}
       <video
-        src={message.media_url}
+        src={displayUrl}
         controls
         preload="metadata"
         className={cn(MEDIA_BOX, "rounded-lg")}
@@ -236,12 +240,14 @@ export function MediaAudioBubble({
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loadStatus, setLoadStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
+  const displayUrl = resolveDisplayMediaUrl(message);
+
   useEffect(() => {
-    const url = message.media_url;
+    const url = displayUrl;
     if (!url) return;
 
     // Public bucket URLs can be used directly; proxied ones need blob loading
-    if (!url.startsWith("/api/whatsapp/media/")) {
+    if (!url.startsWith("/api/whatsapp/media/") && !url.startsWith("/api/gateway/media/")) {
       setBlobUrl(url);
       setLoadStatus("ready");
       return;
@@ -270,7 +276,7 @@ export function MediaAudioBubble({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [message.media_url]);
+  }, [displayUrl]);
 
   // --- Playback state ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -447,10 +453,12 @@ export function MediaDocumentBubble({
 }) {
   const { downloading, download } = useMediaDownload(message, t);
 
+  const displayUrl = resolveDisplayMediaUrl(message) || message.media_url;
+
   return (
     <div className="flex items-center gap-2">
       <a
-        href={message.media_url}
+        href={displayUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"

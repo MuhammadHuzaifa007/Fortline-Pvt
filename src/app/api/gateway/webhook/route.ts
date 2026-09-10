@@ -187,6 +187,7 @@ export async function POST(
             assigned_sales_member_id: salesMemberId || null,
             channel_phone_number_id: channel.phone_number_id || null,
             status: 'open',
+            chat_type: norm.chatType,
             is_unanswered: !norm.isFromMe,
             unread_count: norm.isFromMe ? 0 : 1,
             last_message_at: norm.timestamp,
@@ -202,18 +203,29 @@ export async function POST(
         conversationId = newConv.id;
       }
 
+      // If media is from WhatsApp CDN (.enc), point to our gateway media proxy route
+      const resolvedMediaUrl = norm.mediaUrl
+        ? (norm.mediaUrl.startsWith('https://mmg.whatsapp.net')
+            ? `/api/gateway/media/${norm.messageId}`
+            : norm.mediaUrl)
+        : null;
+
       // Insert message
       const { error: msgErr } = await admin.from('messages').insert({
         conversation_id: conversationId,
         sender_type: norm.senderType === 'agent' ? 'user' : 'contact',
         content: norm.text,
-        media_url: norm.mediaUrl || null,
+        media_url: resolvedMediaUrl,
         media_type: norm.mediaType || 'text',
         message_id: norm.messageId,
         status: 'delivered',
         created_at: norm.timestamp,
         channel_phone_number_id: channel.phone_number_id || null,
         sales_member_id: salesMemberId || null,
+        metadata: norm.chatType === 'group' ? {
+          participant_phone: norm.participantPhone,
+          participant_name: norm.participantName,
+        } : undefined,
       });
 
       if (msgErr) {
@@ -231,6 +243,7 @@ export async function POST(
           unread_count: norm.isFromMe ? 0 : existingConvUnread + 1,
           assigned_sales_member_id: salesMemberId || undefined,
           channel_phone_number_id: channel.phone_number_id || undefined,
+          chat_type: norm.chatType,
           updated_at: new Date().toISOString(),
         })
         .eq('id', conversationId);

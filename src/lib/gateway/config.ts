@@ -37,3 +37,31 @@ export async function getGatewayConfig(
     is_enabled: true,
   };
 }
+
+export async function gatewayFetch(
+  primaryUrl: string,
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const cleanPrimary = (primaryUrl || DEFAULT_GATEWAY_URL).replace(/\/$/, '');
+  const urlsToTry = [cleanPrimary];
+
+  if (!cleanPrimary.includes('127.0.0.1') && !cleanPrimary.includes('localhost')) {
+    urlsToTry.push('http://127.0.0.1:8080');
+    urlsToTry.push('http://localhost:8080');
+  }
+
+  let lastError: any = null;
+  for (const baseUrl of urlsToTry) {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, {
+        ...options,
+        signal: AbortSignal.timeout(8000),
+      });
+      return res;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error(`Failed to reach gateway at ${urlsToTry.join(', ')}`);
+}

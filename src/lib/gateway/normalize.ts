@@ -9,6 +9,9 @@ export interface NormalizedGatewayMessage {
   mediaType?: 'text' | 'image' | 'audio' | 'video' | 'document';
   mediaUrl?: string;
   timestamp: string;
+  chatType: 'direct' | 'group';
+  participantPhone?: string;
+  participantName?: string;
 }
 
 export function normalizeGatewayMessage(payload: any): NormalizedGatewayMessage | null {
@@ -22,8 +25,26 @@ export function normalizeGatewayMessage(payload: any): NormalizedGatewayMessage 
   }
 
   const isFromMe = Boolean(data.key.fromMe);
-  const rawNumber = remoteJid.replace(/@.*$/, '');
-  const customerPhone = rawNumber.startsWith('+') ? rawNumber : `+${rawNumber}`;
+  const isGroup = remoteJid.includes('@g.us') || remoteJid.startsWith('120363') || Boolean(data.key.participant);
+  const chatType: 'direct' | 'group' = isGroup ? 'group' : 'direct';
+
+  // For direct chats: prefer real phone number from remoteJidAlt (resolves @lid to real phone)
+  // For group chats: keep group JID or group identifier
+  let customerPhone = '';
+  if (isGroup) {
+    // Preserve group JID format with @g.us so it is unmistakably recognized as a group
+    customerPhone = remoteJid.includes('@g.us') ? remoteJid : `${remoteJid.replace(/@.*$/, '')}@g.us`;
+  } else {
+    const rawNumber = (data.key.remoteJidAlt || remoteJid).replace(/@.*$/, '');
+    customerPhone = rawNumber.startsWith('+') ? rawNumber : `+${rawNumber}`;
+  }
+
+  // Extract real participant phone inside group if available
+  let participantPhone: string | undefined;
+  if (isGroup && data.key.participant) {
+    const pRaw = (data.key.participantAlt || data.key.participant).replace(/@.*$/, '');
+    participantPhone = pRaw.startsWith('+') ? pRaw : `+${pRaw}`;
+  }
 
   const msg = data.message || {};
   let text = '';
@@ -83,5 +104,8 @@ export function normalizeGatewayMessage(payload: any): NormalizedGatewayMessage 
     mediaType,
     mediaUrl,
     timestamp,
+    chatType,
+    participantPhone,
+    participantName: isGroup ? data.pushName : undefined,
   };
 }

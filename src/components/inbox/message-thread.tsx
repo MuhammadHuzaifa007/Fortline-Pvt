@@ -29,6 +29,8 @@ import {
   PanelRightClose,
   Phone,
   Info,
+  History,
+  Users,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -216,6 +218,7 @@ export function MessageThread({
       }
     };
   }, []);
+
   const handleRefreshClick = useCallback(() => {
     if (isRefreshing || !onRefresh) return;
     setIsRefreshing(true);
@@ -225,6 +228,31 @@ export function MessageThread({
       refreshTimerRef.current = null;
     }, 700);
   }, [isRefreshing, onRefresh]);
+
+  const conversationId = conversation?.id;
+  const [isSyncingHistory, setIsSyncingHistory] = useState(false);
+  const handleSyncHistory = useCallback(async () => {
+    if (!conversationId || isSyncingHistory) return;
+    setIsSyncingHistory(true);
+    try {
+      const res = await fetch("/api/gateway/sync-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Synced ${data.syncedCount || 0} messages from WhatsApp`);
+        if (onRefresh) onRefresh();
+      } else {
+        toast.error(data.error || "Failed to sync chat history");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sync history");
+    } finally {
+      setIsSyncingHistory(false);
+    }
+  }, [conversationId, isSyncingHistory, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [mobileContactOpen, setMobileContactOpen] = useState(false);
@@ -360,7 +388,6 @@ export function MessageThread({
     onMessagesLoadedRef.current = onMessagesLoaded;
   });
 
-  const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
 
   const mediaMessageId =
@@ -1029,34 +1056,57 @@ export function MessageThread({
           )}
           
           {/* Interactive contact header: tapping opens the mobile/tablet contact drawer */}
-          <div
-            onClick={() => setMobileContactOpen(true)}
-            className="flex items-center gap-2 sm:gap-3 min-w-0 cursor-pointer group/hdr rounded-lg py-1 px-1 -mx-1 hover:bg-muted/60 transition-colors"
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setMobileContactOpen(true);
-              }
-            }}
-            title="View contact info, tags, and notes"
-          >
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground group-hover/hdr:ring-2 group-hover/hdr:ring-primary/40 transition-all">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold text-foreground flex items-center gap-1.5 group-hover/hdr:text-primary transition-colors">
-                {displayName}
-                {contact.is_spam && (
-                  <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
-                    Spam
-                  </span>
+          {(() => {
+            const isGroup =
+              conversation?.chat_type === "group" ||
+              contact.phone.includes("@g.us") ||
+              contact.phone.startsWith("120363") ||
+              contact.phone.startsWith("+120363");
+            return (
+              <div
+                onClick={() => setMobileContactOpen(true)}
+                className="flex items-center gap-2 sm:gap-3 min-w-0 cursor-pointer group/hdr rounded-lg py-1 px-1 -mx-1 hover:bg-muted/60 transition-colors"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setMobileContactOpen(true);
+                  }
+                }}
+                title="View contact info, tags, and notes"
+              >
+                {isGroup ? (
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-teal-500/20 text-sm font-medium text-teal-400 group-hover/hdr:ring-2 group-hover/hdr:ring-primary/40 transition-all">
+                    <Users className="h-4 w-4" />
+                  </div>
+                ) : (
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground group-hover/hdr:ring-2 group-hover/hdr:ring-primary/40 transition-all">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
                 )}
-              </h2>
-              <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
-            </div>
-          </div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-foreground flex items-center gap-1.5 group-hover/hdr:text-primary transition-colors">
+                    {displayName}
+                    {isGroup && (
+                      <span className="inline-flex items-center gap-0.5 rounded bg-teal-500/15 px-1.5 py-0.5 text-[9px] font-bold text-teal-500 border border-teal-500/30 shrink-0">
+                        <Users className="h-2.5 w-2.5" />
+                        Group
+                      </span>
+                    )}
+                    {contact.is_spam && (
+                      <span className="inline-flex items-center rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-rose-500 border border-rose-500/20 uppercase tracking-wide shrink-0">
+                        Spam
+                      </span>
+                    )}
+                  </h2>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {isGroup ? "WhatsApp Group" : contact.phone}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
@@ -1110,6 +1160,24 @@ export function MessageThread({
               )}
             </button>
           )}
+
+          {/* Sync Chat History from WhatsApp */}
+          <button
+            type="button"
+            onClick={handleSyncHistory}
+            disabled={isSyncingHistory}
+            aria-label="Sync Chat History from WhatsApp"
+            title="Sync Chat History from WhatsApp (pull yesterday & older chats)"
+            className={cn(
+              "inline-flex h-7 items-center gap-1 px-2 rounded-md text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60 border border-border/50",
+              isSyncingHistory && "text-primary"
+            )}
+          >
+            <History
+              className={cn("h-3.5 w-3.5", isSyncingHistory && "animate-spin")}
+            />
+            <span className="hidden sm:inline">Sync History</span>
+          </button>
 
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful

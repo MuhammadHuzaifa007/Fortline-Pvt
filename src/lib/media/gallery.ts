@@ -1,4 +1,5 @@
 import type { Message } from "@/types";
+import { resolveDisplayMediaUrl } from "./blob-cache";
 
 /**
  * The set of media in a thread that the lightbox can page through, built
@@ -44,7 +45,7 @@ export function collectMediaGallery(messages: Message[]): MediaGalleryItem[] {
     if (!kind || !message.media_url) continue;
     items.push({
       messageId: message.id,
-      url: message.media_url,
+      url: resolveDisplayMediaUrl(message) || message.media_url,
       kind,
       caption: message.content_text || undefined,
       createdAt: message.created_at,

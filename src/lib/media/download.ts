@@ -1,5 +1,5 @@
 import type { Message } from "@/types";
-import { loadMediaBlob, MediaResponseError } from "./blob-cache";
+import { loadMediaBlob, MediaResponseError, resolveDisplayMediaUrl } from "./blob-cache";
 import { mediaFilename } from "./filename";
 
 /**
@@ -17,7 +17,7 @@ import { mediaFilename } from "./filename";
  * fallback below.
  */
 export async function downloadMediaMessage(message: Message): Promise<void> {
-  const url = message.media_url;
+  const url = resolveDisplayMediaUrl(message);
   if (!url) throw new Error("This message has no attachment.");
 
   let blob: Blob;

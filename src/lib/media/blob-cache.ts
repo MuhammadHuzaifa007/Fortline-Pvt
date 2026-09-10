@@ -23,8 +23,22 @@
  * object URL keeps its blob's data alive by itself.
  */
 
-/** Prefix of the auth-gated proxy — these need a credentialed fetch. */
+/** Prefixes of the auth-gated proxies — these need a credentialed fetch. */
 const PROXY_PREFIX = "/api/whatsapp/media/";
+const GATEWAY_PROXY_PREFIX = "/api/gateway/media/";
+
+/**
+ * Returns a displayable URL for a message. Encrypted WhatsApp CDN URLs
+ * (https://mmg.whatsapp.net/...) are redirected through our gateway media decryption proxy.
+ */
+export function resolveDisplayMediaUrl(message: { id: string; message_id?: string; media_url?: string }): string | undefined {
+  if (!message.media_url) return undefined;
+  if (message.media_url.startsWith('data:')) return message.media_url;
+  if (message.media_url.startsWith('https://mmg.whatsapp.net') || message.media_url.startsWith(GATEWAY_PROXY_PREFIX)) {
+    return `${GATEWAY_PROXY_PREFIX}${message.id}`;
+  }
+  return message.media_url;
+}
 
 /**
  * How many blobs to hold. Worst case is a thread that's nothing but
@@ -61,9 +75,9 @@ export class MediaResponseError extends Error {
   }
 }
 
-/** True for inbound media that has to be pulled through our proxy. */
+/** True for inbound media that has to be pulled through our proxies. */
 export function isProxiedMediaUrl(url: string): boolean {
-  return url.startsWith(PROXY_PREFIX);
+  return url.startsWith(PROXY_PREFIX) || url.startsWith(GATEWAY_PROXY_PREFIX);
 }
 
 function remember(url: string, blob: Blob): void {
