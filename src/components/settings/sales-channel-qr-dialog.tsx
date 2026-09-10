@@ -64,10 +64,15 @@ export function SalesChannelQrDialog({
   const [justConnected, setJustConnected] = useState(false)
   const [secondsRemaining, setSecondsRemaining] = useState<number>(COUNTDOWN_SECONDS)
 
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null)
   const autoCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const prevPairingStateRef = useRef<string>('disconnected')
+  const onStatusChangedRef = useRef(onStatusChanged)
+  const onOpenChangeRef = useRef(onOpenChange)
+
+  useEffect(() => {
+    onStatusChangedRef.current = onStatusChanged
+    onOpenChangeRef.current = onOpenChange
+  })
 
   // Sync phone input when member changes
   useEffect(() => {
@@ -76,53 +81,39 @@ export function SalesChannelQrDialog({
     }
   }, [member])
 
-  // Reset & start 60s countdown timer
-  const resetCountdown = useCallback(() => {
-    setSecondsRemaining(COUNTDOWN_SECONDS)
-    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    countdownTimerRef.current = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }, [])
+  const memberId = member?.id
+  const memberName = member?.name
 
-  // When timer hits 0, mark expired if not connected
-  useEffect(() => {
-    if (secondsRemaining === 0 && pairingState !== 'connected') {
-      setPairingState('expired')
-    }
-  }, [secondsRemaining, pairingState])
-
+  // Stable status check function - does NOT depend on secondsRemaining
   const fetchStatus = useCallback(async (isInitial = false) => {
-    if (!member) return
+    if (!memberId) return
     if (isInitial) setInitialLoading(true)
 
     try {
-      const res = await fetch(`/api/gateway/instance?salesMemberId=${member.id}`)
+      const res = await fetch(`/api/gateway/instance?salesMemberId=${memberId}`)
       if (res.ok) {
         const data = await res.json()
         const nextState = data.pairingState
-        
-        if (nextState !== 'connected' && secondsRemaining === 0) {
-          setPairingState('expired')
-        } else {
-          setPairingState(nextState)
-        }
+
+        setPairingState((current) => {
+          if (nextState === 'connected') return 'connected'
+          if (current === 'expired') return 'expired'
+          return nextState || current
+        })
 
         if (data.qrcode) {
           setQrcode((prev) => {
-            if (prev !== data.qrcode) resetCountdown()
+            if (prev !== data.qrcode) {
+              setSecondsRemaining(COUNTDOWN_SECONDS)
+            }
             return data.qrcode
           })
         }
         if (data.pairingCode) {
           setPairingCode((prev) => {
-            if (prev !== data.pairingCode) resetCountdown()
+            if (prev !== data.pairingCode) {
+              setSecondsRemaining(COUNTDOWN_SECONDS)
+            }
             return data.pairingCode
           })
         }
@@ -130,35 +121,30 @@ export function SalesChannelQrDialog({
         setIsGatewayReachable(data.isGatewayReachable ?? true)
 
         if (nextState === 'connected') {
-          if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-          onStatusChanged?.()
+          onStatusChangedRef.current?.()
 
-          // Transition to connected celebration
+          // Celebration & auto-close when transitioning to connected
           if (
             prevPairingStateRef.current === 'qrcode' ||
             prevPairingStateRef.current === 'pairing_code' ||
             prevPairingStateRef.current === 'connecting'
           ) {
             setJustConnected(true)
-            toast.success(`🎉 ${member.name}'s WhatsApp connected successfully!`, {
+            toast.success(`🎉 ${memberName || 'Sales Member'}'s WhatsApp connected successfully!`, {
               description: 'Syncing live chats into CRM...',
-              action: {
-                label: 'View Chats',
-                onClick: () => router.push(`/inbox?sales_member_id=${member.id}`),
-              },
             })
 
             // Trigger background chat sync into CRM
             fetch('/api/gateway/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ salesMemberId: member.id }),
+              body: JSON.stringify({ salesMemberId: memberId }),
             }).catch(() => {})
 
-            // Auto-close dialog after 1.2 seconds celebration & seamless handoff
+            // Auto-close dialog after 1.2 seconds
             if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
             autoCloseTimeoutRef.current = setTimeout(() => {
-              onOpenChange(false)
+              onOpenChangeRef.current?.(false)
             }, 1200)
           }
         }
@@ -169,9 +155,57 @@ export function SalesChannelQrDialog({
     } finally {
       if (isInitial) setInitialLoading(false)
     }
-  }, [member, onOpenChange, onStatusChanged, resetCountdown, router, secondsRemaining])
+  }, [memberId, memberName])
 
-  // Request / Refresh QR Code (in-place without full-page reloads)
+  // Independent 60s countdown timer - isolated to prevent modal re-renders
+  useEffect(() => {
+    if (!open) {
+      setSecondsRemaining(COUNTDOWN_SECONDS)
+      setQrcode(null)
+      setPairingCode(null)
+      setPairingState('disconnected')
+      return
+    }
+
+    if (pairingState === 'connected') return
+    if (!qrcode && !pairingCode) return
+
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          setPairingState('expired')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [open, qrcode, pairingCode, pairingState])
+
+  // Dialog open & background polling effect - stable and runs once per open
+  useEffect(() => {
+    if (open && memberId) {
+      setJustConnected(false)
+      prevPairingStateRef.current = 'disconnected'
+      setSecondsRemaining(COUNTDOWN_SECONDS)
+
+      // Initial fetch on modal open
+      fetchStatus(true)
+
+      // Poll every 2.5s in the background to detect phone camera scan or OTP approval
+      const pollTimer = setInterval(() => {
+        fetchStatus(false)
+      }, 2500)
+
+      return () => {
+        clearInterval(pollTimer)
+        if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
+      }
+    }
+  }, [open, memberId, fetchStatus])
+
+  // Request / Refresh QR Code (in-place without page reload or full spinner)
   const requestQrCode = async () => {
     if (!member) return
     setActionLoading(true)
@@ -190,7 +224,7 @@ export function SalesChannelQrDialog({
         setQrcode(data.qrcode)
         setPairingCode(null)
         setInstanceName(data.instanceName)
-        resetCountdown()
+        setSecondsRemaining(COUNTDOWN_SECONDS)
         if (data.qrcode) {
           toast.success('Generated fresh WhatsApp QR code!')
         } else {
@@ -241,7 +275,7 @@ export function SalesChannelQrDialog({
           setPairingCode(code)
           setPairingState('pairing_code')
           prevPairingStateRef.current = 'pairing_code'
-          resetCountdown()
+          setSecondsRemaining(COUNTDOWN_SECONDS)
           toast.success('8-Digit Pairing Code Generated! Enter it on WhatsApp.')
         } else {
           setPairingState('connecting')
@@ -289,8 +323,7 @@ export function SalesChannelQrDialog({
         prevPairingStateRef.current = 'disconnected'
         setQrcode(null)
         setPairingCode(null)
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-        onStatusChanged?.()
+        onStatusChangedRef.current?.()
       } else {
         toast.error('Failed to disconnect')
       }
@@ -300,29 +333,6 @@ export function SalesChannelQrDialog({
       setActionLoading(false)
     }
   }
-
-  useEffect(() => {
-    if (open && member) {
-      setJustConnected(false)
-      prevPairingStateRef.current = 'disconnected'
-      resetCountdown()
-      fetchStatus(true)
-      // Smooth background polling every 2.5 seconds
-      pollTimerRef.current = setInterval(() => {
-        fetchStatus(false)
-      }, 2500)
-    } else {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-      if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
-    }
-
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-      if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
-    }
-  }, [open, member, fetchStatus, resetCountdown])
 
   if (!member) return null
 
@@ -406,7 +416,7 @@ export function SalesChannelQrDialog({
 
           {/* Main Display Area */}
           <div className="flex flex-col items-center justify-center p-5 rounded-xl border border-border bg-muted/30 text-center min-h-[280px]">
-            {initialLoading ? (
+            {initialLoading && !qrcode && !pairingCode ? (
               <div className="space-y-2 text-muted-foreground py-10">
                 <Loader2 className="size-8 animate-spin mx-auto text-primary" />
                 <p className="text-xs">Initializing WhatsApp session...</p>
@@ -675,14 +685,14 @@ export function SalesChannelQrDialog({
             )}
           </div>
 
-          {/* Step-by-Step Instructions */}
+          {/* Step-by-Step Instructions (With 60-Second Window Reference) */}
           <div className="space-y-2 p-3 rounded-lg bg-card border border-border text-xs">
             <div className="font-semibold text-foreground flex items-center gap-1.5">
               <Info className="size-3.5 text-primary" />
               <span>
                 {activeTab === 'phone_code'
-                  ? `How ${member.name} pairs using phone number:`
-                  : `How ${member.name} scans QR code in 10 seconds:`}
+                  ? `How ${member.name} pairs using phone number (within 60 seconds):`
+                  : `How ${member.name} links WhatsApp (within 60 seconds / 1 min):`}
               </span>
             </div>
 
@@ -694,14 +704,14 @@ export function SalesChannelQrDialog({
                 <li>
                   Tap <span className="font-semibold text-foreground">"Link with phone number instead"</span> at the bottom of the phone screen.
                 </li>
-                <li>Type the 8-character code shown above into WhatsApp.</li>
+                <li>Type the 8-character code shown above into WhatsApp before the 60-second timer expires.</li>
               </ol>
             ) : (
               <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-[11px] pl-1 leading-relaxed">
                 <li>Open WhatsApp on <strong>{member.name}</strong>'s phone.</li>
                 <li>Tap <strong>Settings</strong> (iPhone) or <strong>Three Dots (⋮)</strong> (Android).</li>
                 <li>Tap <strong>Linked Devices</strong> &rarr; <strong>Link a Device</strong>.</li>
-                <li>Point the phone's camera at the QR code above.</li>
+                <li>Point the phone's camera at the QR code above before the 60-second timer expires.</li>
               </ol>
             )}
           </div>
