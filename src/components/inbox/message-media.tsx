@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   FileText,
@@ -232,9 +232,202 @@ export function MediaAudioBubble({
 }) {
   const { downloading, download } = useMediaDownload(message, t);
 
+  // --- Blob loading for proxied (inbound) voice messages ---
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loadStatus, setLoadStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+
+  useEffect(() => {
+    const url = message.media_url;
+    if (!url) return;
+
+    // Public bucket URLs can be used directly; proxied ones need blob loading
+    if (!url.startsWith("/api/whatsapp/media/")) {
+      setBlobUrl(url);
+      setLoadStatus("ready");
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setLoadStatus("loading");
+
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+        setLoadStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setLoadStatus("error");
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [message.media_url]);
+
+  // --- Playback state ---
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const togglePlay = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) {
+      el.pause();
+    } else {
+      el.play().catch(() => {});
+    }
+  }, [playing]);
+
+  const handleTimeUpdate = useCallback(() => {
+    const el = audioRef.current;
+    if (el) setCurrentTime(el.currentTime);
+  }, []);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const el = audioRef.current;
+    if (el && isFinite(el.duration)) setDuration(el.duration);
+  }, []);
+
+  const handleEnded = useCallback(() => {
+    setPlaying(false);
+    setCurrentTime(0);
+    const el = audioRef.current;
+    if (el) el.currentTime = 0;
+  }, []);
+
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = audioRef.current;
+    if (!el) return;
+    const val = parseFloat(e.target.value);
+    el.currentTime = val;
+    setCurrentTime(val);
+  }, []);
+
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Generate deterministic "waveform" bars from message id
+  const bars = useMemo(() => {
+    const seed = message.id || "default";
+    const result: number[] = [];
+    for (let i = 0; i < 28; i++) {
+      const code = seed.charCodeAt(i % seed.length) || 42;
+      result.push(0.2 + ((code * (i + 1) * 7) % 100) / 125);
+    }
+    return result;
+  }, [message.id]);
+
+  if (!message.media_url) {
+    return <MediaUnavailable label={t("audio")} t={t} />;
+  }
+
+  if (loadStatus === "loading") {
+    return (
+      <div className="flex w-56 items-center gap-2 rounded-lg px-1 py-2">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <span className="text-xs text-muted-foreground">Loading voice…</span>
+      </div>
+    );
+  }
+
+  if (loadStatus === "error") {
+    return <MediaUnavailable label={t("audio")} t={t} />;
+  }
+
   return (
-    <div className="flex items-center gap-2">
-      <audio src={message.media_url} controls className="max-w-60" />
+    <div className="flex w-64 items-center gap-2 py-1">
+      {/* Hidden audio element */}
+      {blobUrl && (
+        <audio
+          ref={audioRef}
+          src={blobUrl}
+          preload="metadata"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onEnded={handleEnded}
+          onDurationChange={handleLoadedMetadata}
+        />
+      )}
+
+      {/* Play / Pause button */}
+      <button
+        type="button"
+        onClick={togglePlay}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-sm transition-transform hover:scale-105 active:scale-95"
+        aria-label={playing ? "Pause" : "Play"}
+      >
+        {playing ? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+            <rect x="2" y="1" width="3.5" height="12" rx="1" />
+            <rect x="8.5" y="1" width="3.5" height="12" rx="1" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+            <path d="M3 1.5v11l9-5.5z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Waveform + seek area */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {/* Waveform visualization */}
+        <div className="relative flex h-7 items-end gap-[1.5px]">
+          {bars.map((h, i) => {
+            const barPercent = ((i + 1) / bars.length) * 100;
+            const isPlayed = barPercent <= progress;
+            return (
+              <div
+                key={i}
+                className="flex-1 rounded-full transition-colors duration-75"
+                style={{
+                  height: `${h * 100}%`,
+                  minHeight: 3,
+                  backgroundColor: isPlayed
+                    ? "var(--color-primary, #00a884)"
+                    : "var(--color-muted-foreground, #8696a0)",
+                  opacity: isPlayed ? 1 : 0.4,
+                }}
+              />
+            );
+          })}
+          {/* Invisible range input overlaid for seeking */}
+          <input
+            type="range"
+            min={0}
+            max={duration || 1}
+            step={0.1}
+            value={currentTime}
+            onChange={handleSeek}
+            className="absolute inset-0 cursor-pointer opacity-0"
+            aria-label="Seek"
+          />
+        </div>
+
+        {/* Time display */}
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <span>{fmtTime(currentTime)}</span>
+          <span>{duration > 0 ? fmtTime(duration) : "—"}</span>
+        </div>
+      </div>
+
+      {/* Download button */}
       <MediaActionButton
         icon={Download}
         label={t("download")}
