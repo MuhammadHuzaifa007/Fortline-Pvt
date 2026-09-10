@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FortlineSalesMemberWithPresence } from '@/types/fortline'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { SalesChannelQrDialog } from '@/components/settings/sales-channel-qr-dialog'
 import { WhatsAppChatsIcon } from '@/components/icons/whatsapp-business-logo'
