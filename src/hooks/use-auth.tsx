@@ -20,6 +20,7 @@ import {
   isAccountRole,
   type AccountRole,
 } from "@/lib/auth/roles";
+import { purgeClientChatSession } from "@/lib/auth/session-purge";
 
 interface Profile {
   id: string;
@@ -299,6 +300,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signOut = useCallback(async () => {
+    // Strictly purge all cached chat messages, transient drafts, and line session keys
+    purgeClientChatSession();
+
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);

@@ -140,6 +140,20 @@ function InboxPageInner() {
     });
   }, []);
 
+  // Listen for strict session purge event (triggered on logout or line unlinking)
+  useEffect(() => {
+    const onSessionPurged = () => {
+      setActiveConversation(null);
+      setActiveContact(null);
+      setMessages([]);
+      setResyncToken((n) => n + 1);
+    };
+    window.addEventListener("fortline:session-purged", onSessionPurged);
+    return () => {
+      window.removeEventListener("fortline:session-purged", onSessionPurged);
+    };
+  }, []);
+
   // Fire the deep-link auto-select exactly once per URL — subsequent
   // list refreshes (realtime, manual refetch) must not snap the user
   // back to the deep-linked conversation if they've already clicked

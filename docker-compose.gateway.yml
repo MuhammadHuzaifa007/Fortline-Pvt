@@ -84,6 +84,11 @@ services:
       - WEBHOOK_EVENTS_CONNECTION_UPDATE=true
       - WEBHOOK_EVENTS_SEND_MESSAGE=true
 
+      # QR Code & Session Tuning (60s+ scanning window)
+      - QRCODE_LIMIT=30
+      - QRCODE_COLOR=#008069
+      - CONFIG_SESSION_PHONE_CLIENT_NAME=Fortline CRM
+
       # Logging
       - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG
       - LOG_COLOR=true
