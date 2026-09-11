@@ -22,12 +22,23 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // Verify ownership of the conversations
+    const { data: validConvs } = await ctx.supabase
+      .from("conversations")
+      .select("id")
+      .in("id", ids)
+      .eq("account_id", ctx.accountId);
+      
+    const validIds = validConvs?.map(c => c.id) || [];
+    if (validIds.length === 0) {
+      return NextResponse.json({ success: true, count: 0 });
+    }
+
     // First delete messages
     const { error: msgErr } = await ctx.supabase
       .from("messages")
       .delete()
-      .in("conversation_id", ids)
-      .eq("account_id", ctx.accountId);
+      .in("conversation_id", validIds);
 
     if (msgErr) {
       console.error("[DELETE /api/conversations] message delete error:", msgErr);
@@ -38,7 +49,7 @@ export async function DELETE(request: Request) {
     const { error: convErr } = await ctx.supabase
       .from("conversations")
       .delete()
-      .in("id", ids)
+      .in("id", validIds)
       .eq("account_id", ctx.accountId);
 
     if (convErr) {
@@ -46,7 +57,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Failed to delete conversations" }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, count: ids.length });
+    return NextResponse.json({ success: true, count: validIds.length });
   } catch (err) {
     return toErrorResponse(err);
   }

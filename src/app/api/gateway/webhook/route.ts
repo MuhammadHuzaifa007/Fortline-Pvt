@@ -357,15 +357,12 @@ export async function POST(
       const { error: msgErr } = await admin
         .from('messages')
         .insert({
-          account_id: accountId,
           conversation_id: conversationId,
           message_id: call.messageId,
-          sender_type: call.isFromMe ? 'agent' : 'customer',
-          sender_phone: call.isFromMe ? channel.channel_name : call.customerPhone,
-          content_type: 'call',
-          content_text: contentText,
+          sender_type: call.isFromMe ? 'user' : 'contact',
+          content: contentText,
           status: call.isFromMe ? 'sent' : 'received',
-          media_type: 'call', // Ensure media_type is call for the UI
+          media_type: 'call',
           created_at: call.timestamp,
         });
 
