@@ -17,8 +17,8 @@ export const DEFAULT_KPI_CONFIG: FortlineKpiConfig = {
   followup_target_hours: 24,
   unanswered_threshold_min: 30,
   overdue_threshold_hours: 48,
-  online_window_min: 5,
-  away_window_min: 60,
+  online_window_min: 30,   // Active on WhatsApp in last 30 min → Online
+  away_window_min: 120,    // WhatsApp session open but silent 30–120 min → Away
   business_hours_start: '09:00',
   business_hours_end: '18:00',
   alert_severity_unanswered: 'warning',
@@ -27,57 +27,83 @@ export const DEFAULT_KPI_CONFIG: FortlineKpiConfig = {
 };
 
 /**
- * Derive effective presence status from timestamps and thresholds
+ * Derive effective presence status for a sales member.
+ *
+ * Source of truth is the WhatsApp GATEWAY, not CRM usage.
+ * The 30 sales reps never open the CRM — their presence is:
+ *
+ *   1. OFFLINE  → channel is disconnected/logged-out (phone off, session expired)
+ *   2. ONLINE   → channel connected AND last WhatsApp message/activity ≤ onlineMs
+ *   3. AWAY     → channel connected BUT last activity > onlineMs (at desk, just quiet)
+ *                 OR channel status unknown but last activity within awayMs
+ *   4. OFFLINE  → no activity within awayMs, regardless of channel state
+ *
+ * CRM heartbeats (last_heartbeat_at) are only used for the CEO's own presence
+ * and are intentionally ignored here.
  */
 export function derivePresenceStatus(
   member: {
     presence_status?: string | null;
     last_heartbeat_at?: string | null;
     last_activity_at?: string | null;
-    channel_status?: string | null;
+    channel_status?: string | null;   // fortline_channels.connection_status
   },
   kpiConfig: FortlineKpiConfig = DEFAULT_KPI_CONFIG
 ): { status: PresenceStatus; source: 'heartbeat' | 'channel_activity' | 'inferred' | 'none' } {
   const now = Date.now();
-  const onlineMs = (kpiConfig.online_window_min || 5) * 60 * 1000;
-  const awayMs = (kpiConfig.away_window_min || 60) * 60 * 1000;
+  const onlineMs = (kpiConfig.online_window_min || 30) * 60 * 1000;
+  const awayMs   = (kpiConfig.away_window_min   || 120) * 60 * 1000;
 
-  // 1. Explicitly disconnected channel or member status
+  const channelConnected    = member.channel_status === 'connected';
+  const channelDisconnected = member.channel_status === 'disconnected';
+
+  // ── Rule 1: Channel explicitly disconnected → Offline ──────────────────────
   if (
+    channelDisconnected ||
     member.presence_status === 'disconnected' ||
-    member.presence_status === 'offline' ||
-    member.channel_status === 'disconnected'
+    member.presence_status === 'offline'
   ) {
     return { status: 'offline', source: 'channel_activity' };
   }
 
-  // 2. Active CRM heartbeat
-  if (member.last_heartbeat_at) {
-    const hbDiff = now - new Date(member.last_heartbeat_at).getTime();
-    if (hbDiff <= onlineMs) {
-      if (member.presence_status === 'away') {
-        return { status: 'away', source: 'heartbeat' };
-      }
-      return { status: 'online', source: 'heartbeat' };
-    }
-    if (hbDiff <= awayMs) {
-      return { status: 'away', source: 'heartbeat' };
-    }
-  }
-
-  // 3. Recent WhatsApp / channel activity
+  // ── Rule 2 & 3: Use last WhatsApp activity timestamp ───────────────────────
   if (member.last_activity_at) {
     const actDiff = now - new Date(member.last_activity_at).getTime();
+
     if (actDiff <= onlineMs) {
+      // Recent activity AND channel is connected → definitively Online
       return { status: 'online', source: 'channel_activity' };
     }
+
     if (actDiff <= awayMs) {
+      // Activity in 30–120 min window
+      // If channel is still connected the session is alive → Away (at desk, quiet)
+      // If channel status unknown → Away (give benefit of the doubt)
       return { status: 'away', source: 'channel_activity' };
     }
-    return { status: 'offline', source: 'inferred' };
+
+    // Beyond awayMs with no activity → Offline
+    if (!channelConnected) {
+      // No known live connection → Offline
+      return { status: 'offline', source: 'inferred' };
+    }
+    // Channel IS connected but silent for > 2 hours → Away (phone on, not messaging)
+    return { status: 'away', source: 'channel_activity' };
   }
 
-  if (member.presence_status && member.presence_status !== 'unknown') {
+  // ── Rule 4: No activity timestamp at all ───────────────────────────────────
+  // If the gateway session is live but no messages have ever flowed → Away
+  if (channelConnected) {
+    return { status: 'away', source: 'channel_activity' };
+  }
+
+  // Fallback: use stored status if meaningful
+  if (
+    member.presence_status &&
+    member.presence_status !== 'unknown' &&
+    member.presence_status !== 'disconnected' &&
+    member.presence_status !== 'offline'
+  ) {
     return {
       status: member.presence_status as PresenceStatus,
       source: 'inferred',
@@ -350,6 +376,7 @@ export async function loadSalesMembers(
       ...m,
       whatsapp_phone_number: linkedChannel?.display_phone_number || m.whatsapp_phone_number || m.phone_number,
       whatsapp_phone_number_id: linkedChannel?.phone_number_id || m.whatsapp_phone_number_id,
+      channel_connection_status: (linkedChannel?.connection_status as 'connected' | 'disconnected' | null) ?? null,
       presence_status: presence.status,
       presence_source: presence.source,
       assigned_contact_count: contactsMap[m.id] ?? 0,

@@ -37,6 +37,8 @@ export interface FortlineSalesMember {
   is_active: boolean;
   presence_status: PresenceStatus;
   presence_source: PresenceSource;
+  /** Live gateway connection status from fortline_channels (populated by loadSalesMembers join) */
+  channel_connection_status?: 'connected' | 'disconnected' | null;
   last_activity_at?: string | null;
   last_heartbeat_at?: string | null;
   last_inbound_at?: string | null;

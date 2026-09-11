@@ -280,21 +280,40 @@ export function SalesMembersTable({
 
                     {/* Presence */}
                     <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        {isOnline && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <Wifi className="size-3" /> Online
-                          </span>
+                      <div className="flex flex-col gap-1">
+                        {/* Primary presence status */}
+                        <div className="flex items-center gap-1">
+                          {isOnline && (
+                            <span
+                              title="Sent or received a WhatsApp message in the last 30 minutes"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 cursor-help"
+                            >
+                              <Wifi className="size-3" /> Online
+                            </span>
+                          )}
+                          {isAway && (
+                            <span
+                              title="WhatsApp session is active but no message in 30–120 min. Rep is at desk but quiet."
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 cursor-help"
+                            >
+                              <Clock className="size-3" /> Away
+                            </span>
+                          )}
+                          {isOffline && (
+                            <span
+                              title="WhatsApp channel is disconnected or inactive for over 2 hours"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border cursor-help"
+                            >
+                              <UserX className="size-3" /> Offline
+                            </span>
+                          )}
+                        </div>
+                        {/* Gateway session sub-badge */}
+                        {rep.channel_connection_status === 'disconnected' && (
+                          <span className="text-[9px] text-rose-500 font-medium">⚠ Session disconnected</span>
                         )}
-                        {isAway && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                            <Clock className="size-3" /> Away
-                          </span>
-                        )}
-                        {isOffline && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground border border-border">
-                            <UserX className="size-3" /> Offline
-                          </span>
+                        {rep.channel_connection_status === 'connected' && isOffline && (
+                          <span className="text-[9px] text-amber-500 font-medium">Session alive, inactive</span>
                         )}
                       </div>
                     </td>
@@ -302,12 +321,18 @@ export function SalesMembersTable({
                     {/* Last Activity */}
                     <td className="py-3 px-4 text-muted-foreground text-[11px]">
                       <div>{formatActivityTime(rep.last_activity_at)}</div>
+                      {rep.last_outbound_at && (
+                        <div className="text-[10px] text-muted-foreground/80">
+                          Out: {formatActivityTime(rep.last_outbound_at)}
+                        </div>
+                      )}
                       {rep.last_inbound_at && (
                         <div className="text-[10px] text-muted-foreground/80">
                           In: {formatActivityTime(rep.last_inbound_at)}
                         </div>
                       )}
                     </td>
+
 
                     {/* Assigned Leads */}
                     <td className="py-3 px-4">

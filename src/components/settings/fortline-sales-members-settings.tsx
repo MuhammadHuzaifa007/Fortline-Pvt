@@ -15,6 +15,9 @@ import {
   AlertCircle,
   Phone,
   QrCode,
+  Wifi,
+  WifiOff,
+  Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -82,6 +85,9 @@ export function FortlineSalesMembersSettings() {
 
   useEffect(() => {
     fetchMembers()
+    // Auto-refresh every 30s to stay in sync with dashboard presence updates
+    const interval = setInterval(fetchMembers, 30_000)
+    return () => clearInterval(interval)
   }, [fetchMembers])
 
   const openAdd = () => {
@@ -456,18 +462,24 @@ export function FortlineSalesMembersSettings() {
                     {m.channel_id || '—'}
                   </td>
                   <td className="py-3 px-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleActiveQuick(m)}
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors cursor-pointer ${
-                        m.is_active
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                          : 'bg-muted text-muted-foreground border border-border'
-                      }`}
-                    >
-                      <Power className="size-2.5" />
-                      <span>{m.is_active ? 'Active' : 'Inactive'}</span>
-                    </button>
+                    {/* WhatsApp Gateway connection status — the CEO's view of whether
+                        the rep's phone session is alive (from fortline_channels) */}
+                    {m.channel_connection_status === 'connected' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <Wifi className="size-3" />
+                        Connected
+                      </span>
+                    ) : m.channel_connection_status === 'disconnected' ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                        <WifiOff className="size-3" />
+                        Disconnected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        <Clock className="size-3" />
+                        Not Linked
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
