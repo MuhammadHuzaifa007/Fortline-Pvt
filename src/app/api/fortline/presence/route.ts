@@ -54,9 +54,9 @@ export async function POST(request: Request) {
       if (fullName.toLowerCase().includes('huzaifa')) {
         query = query.ilike('name', '%Huzaifa%');
       } else if (fullName) {
-        const parts = fullName.split(/\s+/).filter(Boolean);
+        const parts: string[] = fullName.split(/\s+/).filter(Boolean);
         const specificPart =
-          parts.find((p) => !['muhammad', 'mohammad', 'mr', 'dr'].includes(p.toLowerCase())) ||
+          parts.find((p: string) => !['muhammad', 'mohammad', 'mr', 'dr'].includes(p.toLowerCase())) ||
           parts[0];
         query = query.ilike('name', `%${specificPart}%`);
       } else {
