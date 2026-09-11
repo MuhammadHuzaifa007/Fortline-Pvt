@@ -510,10 +510,15 @@ export function ConversationList({
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="px-4 py-12 text-center space-y-2">
+            <p className="text-sm font-medium text-foreground">
               {chatTab === "groups" ? t("noGroupsFound") : t("noConversations")}
             </p>
+            {selectedSalesMemberId && selectedSalesMemberId !== "all" && selectedSalesMemberId !== "unassigned" && (
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                No chats synced for this representative yet. If their phone is linked to WhatsApp, click the <span className="text-primary font-semibold">Sync Chats</span> button above or check their status in Settings &gt; Sales Channels.
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex flex-col">

@@ -15,7 +15,7 @@ import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
 import { toast } from "sonner";
-import { WifiOff, Users } from "lucide-react";
+import { WifiOff, Users, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FortlineSalesMember } from "@/types/fortline";
 
@@ -109,6 +109,39 @@ function InboxPageInner() {
    * once on conversationId-change as usual.
    */
   const [resyncToken, setResyncToken] = useState(0);
+  const [syncingRep, setSyncingRep] = useState(false);
+
+  const handleSyncRep = useCallback(async () => {
+    if (!selectedSalesMemberId || selectedSalesMemberId === "all" || selectedSalesMemberId === "unassigned") {
+      toast.info("Please select a specific sales representative to sync their WhatsApp chats.");
+      return;
+    }
+    const currentMember = salesMembers.find((m) => m.id === selectedSalesMemberId);
+    setSyncingRep(true);
+    toast.info(`Fetching WhatsApp chats from phone for ${currentMember?.name || "sales line"}...`);
+    try {
+      const res = await fetch("/api/gateway/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ salesMemberId: selectedSalesMemberId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(
+          `🎉 Synced ${data.syncedChats ?? 0} chats and ${data.syncedMessages ?? 0} messages for ${data.memberName || "representative"}!`
+        );
+        setResyncToken((prev) => prev + 1);
+      } else {
+        toast.error(
+          data.error || "Sync failed. Make sure this phone is linked in Settings > Sales Channels."
+        );
+      }
+    } catch {
+      toast.error("Failed to connect to gateway sync service.");
+    } finally {
+      setSyncingRep(false);
+    }
+  }, [selectedSalesMemberId, salesMembers]);
 
   /**
    * Whether the desktop contact sidebar (tags / deals / notes) is shown.
@@ -725,6 +758,17 @@ function InboxPageInner() {
               ))}
             </select>
           </div>
+          {selectedSalesMemberId && selectedSalesMemberId !== "all" && selectedSalesMemberId !== "unassigned" && (
+            <button
+              onClick={handleSyncRep}
+              disabled={syncingRep}
+              title="Sync recent WhatsApp chats from phone into CRM"
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+            >
+              <RefreshCw className={cn("size-3", syncingRep && "animate-spin")} />
+              <span>{syncingRep ? "Syncing..." : "Sync Chats"}</span>
+            </button>
+          )}
         </div>
       </div>
 
