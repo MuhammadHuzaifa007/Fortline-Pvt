@@ -44,7 +44,10 @@ function normalizePhoneNumber(raw: string): string {
 
 function getWebhookUrl(request: Request): string {
   const host = request.headers.get('host') || '';
-  if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    return 'http://host.docker.internal:3000/api/gateway/webhook';
+  }
+  if (host) {
     return `https://${host}/api/gateway/webhook`;
   }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -156,7 +159,10 @@ export async function GET(request: Request) {
         } else if (rawState === 'connecting') {
           liveState = 'connecting';
         } else {
-          liveState = 'disconnected';
+          liveState =
+            channel.pairing_state === 'pairing_code'
+              ? 'pairing_code'
+              : channel.pairing_state || 'disconnected';
         }
       } else if (stateRes.status === 404) {
         isGatewayReachable = true;
@@ -203,8 +209,13 @@ export async function GET(request: Request) {
       }
     }
 
-    // If instance exists but disconnected/not open, fetch fresh QR code
-    if (isGatewayReachable && liveState !== 'connected' && !qrcodeBase64) {
+    // If instance exists but disconnected/not open, fetch fresh QR code (ONLY if not in pairing_code flow)
+    if (
+      isGatewayReachable &&
+      liveState !== 'connected' &&
+      channel.pairing_state !== 'pairing_code' &&
+      !qrcodeBase64
+    ) {
       try {
         const connectRes = await gatewayFetch(
           gatewayConfig.gateway_url,
@@ -218,20 +229,9 @@ export async function GET(request: Request) {
         if (connectRes.ok) {
           const connectData = await connectRes.json();
           const b64 = connectData?.qrcode?.base64 || connectData?.base64;
-          const code =
-            connectData?.pairingCode ||
-            connectData?.code ||
-            connectData?.count?.pairingCode ||
-            connectData?.qrcode?.pairingCode ||
-            null;
-
           if (b64) {
             qrcodeBase64 = b64;
             liveState = 'qrcode';
-          }
-          if (code && typeof code === 'string' && code.length >= 6) {
-            pairingCode = code;
-            liveState = 'pairing_code';
           }
         }
       } catch {
@@ -350,45 +350,96 @@ export async function POST(request: Request) {
         );
       }
 
-      // Recreate or ensure instance in Evolution API with qrcode: false & number: cleanPhone
+      // 1. Check if instance already exists in gateway without deleting it
+      let instanceExists = false;
       try {
-        await gatewayFetch(gatewayConfig.gateway_url, `/instance/delete/${instanceName}`, {
-          method: 'DELETE',
-          headers: { apikey: gatewayConfig.api_key },
-        });
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        const stateRes = await gatewayFetch(
+          gatewayConfig.gateway_url,
+          `/instance/connectionState/${instanceName}`,
+          {
+            headers: { apikey: gatewayConfig.api_key },
+            cache: 'no-store',
+          }
+        );
+        if (stateRes.ok) {
+          instanceExists = true;
+          const stateData = await stateRes.json();
+          if (stateData?.instance?.state === 'open') {
+            // Device is already connected!
+            await ctx.supabase
+              .from('fortline_channels')
+              .update({
+                pairing_state: 'connected',
+                connection_status: 'connected',
+                display_phone_number: cleanPhone,
+                qr_code_raw: null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', channel.id);
+
+            return NextResponse.json({
+              ok: true,
+              method: 'pairing_code',
+              instanceName,
+              pairingCode: null,
+              phoneNumber: cleanPhone,
+              pairingState: 'connected',
+              webhookUrl,
+              gatewayUrl: gatewayConfig.gateway_url,
+            });
+          }
+        }
       } catch {
-        // Ignore if didn't exist
+        // Gateway unreachable
       }
 
-      try {
-        await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: gatewayConfig.api_key,
-          },
-          body: JSON.stringify({
-            instanceName,
-            token: gatewayConfig.api_key,
-            qrcode: false,
-            number: cleanPhone,
-            integration: 'WHATSAPP-BAILEYS',
-            webhook: {
-              url: webhookUrl,
-              byEvents: false,
-              events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+      // If instance exists and refresh requested, safely clear stale Baileys session without deleting the instance row
+      if (instanceExists && body.refresh === true) {
+        try {
+          await gatewayFetch(gatewayConfig.gateway_url, `/instance/logout/${instanceName}`, {
+            method: 'DELETE',
+            headers: { apikey: gatewayConfig.api_key },
+          });
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        } catch {
+          // Ignore
+        }
+      }
+
+      // 2. Only create if instance does NOT exist in Evolution API
+      if (!instanceExists) {
+        try {
+          await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: gatewayConfig.api_key,
             },
-          }),
-        });
-      } catch (err: any) {
-        console.warn('[gateway-instance] Create pair instance warning:', err.message);
+            body: JSON.stringify({
+              instanceName,
+              token: gatewayConfig.api_key,
+              qrcode: false,
+              number: cleanPhone,
+              integration: 'WHATSAPP-BAILEYS',
+              webhook: {
+                url: webhookUrl,
+                byEvents: false,
+                events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'],
+              },
+            }),
+          });
+          await new Promise((resolve) => setTimeout(resolve, 600));
+        } catch (err: any) {
+          console.warn('[gateway-instance] Create pair instance warning:', err.message);
+        }
       }
 
-      // Poll for 8-character pairing code
+      // 3. Immediately request 8-character pairing code from Evolution API
       let pairingCode: string | null = null;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
         try {
           const connectRes = await gatewayFetch(
             gatewayConfig.gateway_url,
@@ -487,10 +538,8 @@ export async function POST(request: Request) {
       // Gateway unreachable
     }
 
-    const forceRefresh = body.refresh === true;
-
-    // If instance exists and not forced refresh, fetch active QR from /instance/connect
-    if (instanceExists && !forceRefresh) {
+    // If instance exists, fetch active QR from /instance/connect
+    if (instanceExists) {
       try {
         const connectRes = await gatewayFetch(
           gatewayConfig.gateway_url,
@@ -508,22 +557,12 @@ export async function POST(request: Request) {
           }
         }
       } catch {
-        // Fallback to recreate if connect failed
+        // Fallback
       }
     }
 
-    // If forceRefresh or no QR returned from connect, cleanly recreate instance for fresh QR
-    if (!qrcodeBase64) {
-      try {
-        await gatewayFetch(gatewayConfig.gateway_url, `/instance/delete/${instanceName}`, {
-          method: 'DELETE',
-          headers: { apikey: gatewayConfig.api_key },
-        });
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch {
-        // Ignore if delete failed
-      }
-
+    // Only create if instance does NOT exist in Evolution API
+    if (!instanceExists && !qrcodeBase64) {
       try {
         const createRes = await gatewayFetch(gatewayConfig.gateway_url, '/instance/create', {
           method: 'POST',
@@ -550,16 +589,17 @@ export async function POST(request: Request) {
           if (b64) {
             qrcodeBase64 = b64;
           }
+          instanceExists = true;
         }
       } catch (err: any) {
         console.warn('[gateway-instance] QR Create warning:', err.message);
       }
     }
 
-    // If still waiting for QR code to be generated by Baileys, poll gently up to 3 times
+    // If still waiting for QR code to be generated by Baileys, poll gently up to 2 times
     if (!qrcodeBase64) {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
         try {
           const connectRes = await gatewayFetch(
             gatewayConfig.gateway_url,
