@@ -34,26 +34,38 @@ export function derivePresenceStatus(
     presence_status?: string | null;
     last_heartbeat_at?: string | null;
     last_activity_at?: string | null;
+    channel_status?: string | null;
   },
   kpiConfig: FortlineKpiConfig = DEFAULT_KPI_CONFIG
 ): { status: PresenceStatus; source: 'heartbeat' | 'channel_activity' | 'inferred' | 'none' } {
   const now = Date.now();
-  const onlineMs = kpiConfig.online_window_min * 60 * 1000;
-  const awayMs = kpiConfig.away_window_min * 60 * 1000;
+  const onlineMs = (kpiConfig.online_window_min || 5) * 60 * 1000;
+  const awayMs = (kpiConfig.away_window_min || 60) * 60 * 1000;
 
-  if (member.presence_status === 'disconnected') {
-    return { status: 'disconnected', source: 'channel_activity' };
+  // 1. Explicitly disconnected channel or member status
+  if (
+    member.presence_status === 'disconnected' ||
+    member.presence_status === 'offline' ||
+    member.channel_status === 'disconnected'
+  ) {
+    return { status: 'offline', source: 'channel_activity' };
   }
 
-  // 1. Valid authenticated heartbeat within online window
+  // 2. Active CRM heartbeat
   if (member.last_heartbeat_at) {
     const hbDiff = now - new Date(member.last_heartbeat_at).getTime();
     if (hbDiff <= onlineMs) {
+      if (member.presence_status === 'away') {
+        return { status: 'away', source: 'heartbeat' };
+      }
       return { status: 'online', source: 'heartbeat' };
+    }
+    if (hbDiff <= awayMs) {
+      return { status: 'away', source: 'heartbeat' };
     }
   }
 
-  // 2. Recent channel or CRM activity
+  // 3. Recent WhatsApp / channel activity
   if (member.last_activity_at) {
     const actDiff = now - new Date(member.last_activity_at).getTime();
     if (actDiff <= onlineMs) {
@@ -72,7 +84,7 @@ export function derivePresenceStatus(
     };
   }
 
-  return { status: 'unknown', source: 'none' };
+  return { status: 'offline', source: 'none' };
 }
 
 /**
@@ -90,12 +102,30 @@ export async function loadDashboardSummary(
   // Load KPI config for thresholds
   const kpiConfig = await loadKpiConfig(db, accountId);
 
-  // 1. Sales members presence counts
+  // 1. Sales members and channels
   let membersQuery = db
     .from('fortline_sales_members')
     .select('id, presence_status, last_heartbeat_at, last_activity_at, is_active');
   if (accountId) membersQuery = membersQuery.eq('account_id', accountId);
-  const { data: members } = await membersQuery;
+
+  let channelsQuery = db
+    .from('fortline_channels')
+    .select('id, sales_member_id, connection_status');
+  if (accountId) channelsQuery = channelsQuery.eq('account_id', accountId);
+
+  const [{ data: members }, { data: allChannels }] = await Promise.all([
+    membersQuery,
+    channelsQuery,
+  ]);
+
+  const channelByMember: Record<string, string> = {};
+  let totalActiveChannels = 0;
+  if (allChannels) {
+    for (const ch of allChannels) {
+      if (ch.sales_member_id) channelByMember[ch.sales_member_id] = ch.connection_status;
+      if (ch.connection_status === 'connected') totalActiveChannels++;
+    }
+  }
 
   let totalSalesMembers = members?.length ?? 0;
   let onlineSalesMembers = 0;
@@ -104,19 +134,18 @@ export async function loadDashboardSummary(
 
   if (members && members.length > 0) {
     for (const m of members) {
-      const derived = derivePresenceStatus(m, kpiConfig);
+      const derived = derivePresenceStatus(
+        {
+          ...m,
+          channel_status: channelByMember[m.id] || null,
+        },
+        kpiConfig
+      );
       if (derived.status === 'online') onlineSalesMembers++;
       else if (derived.status === 'away') awaySalesMembers++;
       else offlineSalesMembers++;
     }
   }
-
-  // 2. Active WhatsApp channels
-  let channelsQuery = db
-    .from('fortline_channels')
-    .select('id, connection_status', { count: 'exact' });
-  if (accountId) channelsQuery = channelsQuery.eq('account_id', accountId);
-  const { count: totalActiveChannels } = await channelsQuery.eq('connection_status', 'connected');
 
   // 3. New contacts/leads today
   let leadsQuery = db
@@ -245,8 +274,7 @@ export async function loadSalesMembers(
     return { members: [], total: 0 };
   }
 
-  // Batch load assigned contacts and conversations metrics in 2 fast queries
-  // instead of 90 sequential per-member queries (preventing Vercel 504 timeouts).
+  // Batch load assigned contacts, conversations metrics, and WhatsApp channels
   const memberIds = data.map((m: any) => m.id);
 
   let contactsQuery = db
@@ -261,9 +289,16 @@ export async function loadSalesMembers(
     .in('assigned_sales_member_id', memberIds);
   if (accountId) convsQuery = convsQuery.eq('account_id', accountId);
 
-  const [contactsRes, convsRes] = await Promise.all([
+  let channelsQuery = db
+    .from('fortline_channels')
+    .select('sales_member_id, connection_status, pairing_state, display_phone_number, phone_number_id')
+    .in('sales_member_id', memberIds);
+  if (accountId) channelsQuery = channelsQuery.eq('account_id', accountId);
+
+  const [contactsRes, convsRes, channelsRes] = await Promise.all([
     contactsQuery,
     convsQuery,
+    channelsQuery,
   ]);
 
   const contactsMap: Record<string, number> = {};
@@ -290,13 +325,31 @@ export async function loadSalesMembers(
     }
   }
 
+  const channelMap: Record<string, any> = {};
+  if (channelsRes.data) {
+    for (const ch of channelsRes.data) {
+      if (ch.sales_member_id) {
+        channelMap[ch.sales_member_id] = ch;
+      }
+    }
+  }
+
   // Hydrate presence & per-member metrics
   const hydrated: FortlineSalesMember[] = [];
   for (const m of data) {
-    const presence = derivePresenceStatus(m, kpiConfig);
+    const linkedChannel = channelMap[m.id];
+    const presence = derivePresenceStatus(
+      {
+        ...m,
+        channel_status: linkedChannel?.connection_status || null,
+      },
+      kpiConfig
+    );
 
     hydrated.push({
       ...m,
+      whatsapp_phone_number: linkedChannel?.display_phone_number || m.whatsapp_phone_number || m.phone_number,
+      whatsapp_phone_number_id: linkedChannel?.phone_number_id || m.whatsapp_phone_number_id,
       presence_status: presence.status,
       presence_source: presence.source,
       assigned_contact_count: contactsMap[m.id] ?? 0,
@@ -393,7 +446,7 @@ export async function loadExceptions(
           type: 'channel_disconnected',
           severity: 'critical',
           title: `WhatsApp Channel Disconnected: ${ch.display_phone_number || ch.phone_number_id}`,
-          description: `Channel assigned to ${(ch.sales_member as any)?.name || 'Unassigned'} has been disconnected from Meta Cloud API.`,
+          description: `Channel assigned to ${(ch.sales_member as any)?.name || 'Unassigned'} has been disconnected from WhatsApp Gateway.`,
           timestamp: new Date().toISOString(),
           channel_id: ch.phone_number_id,
           sales_member_id: (ch.sales_member as any)?.id,

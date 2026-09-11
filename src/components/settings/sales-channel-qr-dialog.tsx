@@ -134,6 +134,13 @@ export function SalesChannelQrDialog({
               description: 'Syncing live chats into CRM...',
             })
 
+            // Immediately set sales member to active and online in CRM
+            fetch('/api/fortline/presence', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ salesMemberId: memberId, status: 'online' }),
+            }).catch(() => {})
+
             // Trigger background chat sync into CRM
             fetch('/api/gateway/sync', {
               method: 'POST',

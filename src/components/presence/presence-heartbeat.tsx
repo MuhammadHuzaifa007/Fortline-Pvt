@@ -56,14 +56,22 @@ export function PresenceHeartbeat() {
       const t = Date.now();
       if (t - lastBeatAt < 1_000) return;
       lastBeatAt = t;
+      const st = currentStatus();
       const { error } = await supabase.rpc("touch_presence", {
-        p_status: currentStatus(),
+        p_status: st,
       });
       if (error && !cancelled) {
         // Non-fatal: presence is best-effort. Log once per failure so a
         // misconfigured RPC is visible without spamming.
         console.error("[PresenceHeartbeat] touch_presence failed:", error.message);
       }
+
+      // Also sync to Fortline Sales Force monitoring
+      fetch("/api/fortline/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: st }),
+      }).catch(() => {});
     };
 
     // Activity listeners. `passive` so we never block scroll/input.

@@ -69,6 +69,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchSummary()
+    const interval = setInterval(() => {
+      fetchSummary()
+    }, 15000)
+    return () => clearInterval(interval)
   }, [fetchSummary])
 
   return (

@@ -19,10 +19,20 @@ async function gatewayFetch(
   let lastError: any = null;
   for (const baseUrl of urlsToTry) {
     try {
+      const mergedHeaders = {
+        'ngrok-skip-browser-warning': '69420',
+        ...(options.headers || {}),
+      };
       const res = await fetch(`${baseUrl}${path}`, {
         ...options,
+        headers: mergedHeaders,
         signal: AbortSignal.timeout(4000),
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/html') && baseUrl.includes('ngrok')) {
+        continue;
+      }
       return res;
     } catch (err) {
       lastError = err;
@@ -155,6 +165,19 @@ export async function GET(request: Request) {
                 updated_at: new Date().toISOString(),
               })
               .eq('id', channel.id);
+          }
+
+          if (channel.sales_member_id) {
+            await ctx.supabase
+              .from('fortline_sales_members')
+              .update({
+                presence_status: 'online',
+                presence_source: 'channel_activity',
+                last_activity_at: new Date().toISOString(),
+                last_heartbeat_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', channel.sales_member_id);
           }
         } else if (rawState === 'connecting') {
           liveState = 'connecting';
@@ -377,6 +400,19 @@ export async function POST(request: Request) {
               })
               .eq('id', channel.id);
 
+            if (channel.sales_member_id) {
+              await ctx.supabase
+                .from('fortline_sales_members')
+                .update({
+                  presence_status: 'online',
+                  presence_source: 'channel_activity',
+                  last_activity_at: new Date().toISOString(),
+                  last_heartbeat_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', channel.sales_member_id);
+            }
+
             return NextResponse.json({
               ok: true,
               method: 'pairing_code',
@@ -522,6 +558,19 @@ export async function POST(request: Request) {
               updated_at: new Date().toISOString(),
             })
             .eq('id', channel.id);
+
+          if (channel.sales_member_id) {
+            await ctx.supabase
+              .from('fortline_sales_members')
+              .update({
+                presence_status: 'online',
+                presence_source: 'channel_activity',
+                last_activity_at: new Date().toISOString(),
+                last_heartbeat_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', channel.sales_member_id);
+          }
 
           return NextResponse.json({
             ok: true,
