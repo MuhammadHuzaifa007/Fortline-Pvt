@@ -10,7 +10,7 @@ import {
 } from "@/lib/inbox/conversations";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus, Tag } from "@/types";
-import { Search, ChevronDown, X, Flame, MessageCircle, Users } from "lucide-react";
+import { Search, ChevronDown, X, Flame, MessageCircle, Users, Loader2, MoreVertical, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
@@ -79,6 +79,9 @@ export function ConversationList({
   const [filter, setFilter] = useState<InboxFilter>(initialFilter ?? "all");
   const [loading, setLoading] = useState(true);
   const [chatTab, setChatTab] = useState<ChatTab>("direct");
+  const [showAllTime, setShowAllTime] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Sync initialFilter prop if it changes
   useEffect(() => {
@@ -100,10 +103,18 @@ export function ConversationList({
     let cancelled = false;
 
     (async () => {
-      let fetchResult = await supabase
+      let query = supabase
         .from("conversations")
         .select(CONVERSATION_SELECT)
         .order("last_message_at", { ascending: false });
+
+      if (!showAllTime) {
+        const fiveDaysAgo = new Date();
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        query = query.gte("last_message_at", fiveDaysAgo.toISOString()).limit(200);
+      }
+
+      let fetchResult = await query;
 
       // If PostgREST cannot find the relationship in schema cache (PGRST200 / PGRST205 / unmigrated),
       // seamlessly fall back to base select so conversations load without error.
@@ -114,10 +125,18 @@ export function ConversationList({
           fetchResult.error.message?.includes("relationship") ||
           fetchResult.error.message?.includes("schema cache"))
       ) {
-        fetchResult = await supabase
+        let fallbackQuery = supabase
           .from("conversations")
           .select(CONVERSATION_BASE_SELECT)
           .order("last_message_at", { ascending: false });
+          
+        if (!showAllTime) {
+          const fiveDaysAgo = new Date();
+          fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+          fallbackQuery = fallbackQuery.gte("last_message_at", fiveDaysAgo.toISOString()).limit(200);
+        }
+        
+        fetchResult = await fallbackQuery;
       }
 
       if (cancelled) return;
@@ -176,7 +195,7 @@ export function ConversationList({
     return () => {
       cancelled = true;
     };
-  }, [resyncToken]);
+  }, [resyncToken, showAllTime]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
@@ -278,6 +297,72 @@ export function ConversationList({
   }, []);
 
   const hasContactFilters = selectedTagIds.length > 0 || selectedCompany !== null;
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === filtered.length && filtered.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(c => c.id)));
+    }
+  }, [filtered, selectedIds.size]);
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} conversation(s)? This action cannot be undone.`)) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        onConversationsLoadedRef.current(conversations.filter(c => !selectedIds.has(c.id)));
+        setSelectedIds(new Set());
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete conversations");
+      }
+    } catch (err) {
+      alert("Network error while deleting");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteSingle = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this conversation? This action cannot be undone.")) return;
+    try {
+      const res = await fetch("/api/conversations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      });
+      if (res.ok) {
+        onConversationsLoadedRef.current(conversations.filter(c => c.id !== id));
+        if (selectedIds.has(id)) {
+          const next = new Set(selectedIds);
+          next.delete(id);
+          setSelectedIds(next);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete conversation");
+      }
+    } catch (err) {
+      alert("Network error while deleting");
+    }
+  };
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -498,6 +583,49 @@ export function ConversationList({
           </button>
         </div>
 
+      {/* ── Selection Action Bar ── */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between bg-primary/10 px-3 py-2 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleSelectAll}
+              className="flex h-4 w-4 items-center justify-center rounded border border-primary text-primary bg-primary transition-colors hover:bg-primary/90"
+            >
+              {selectedIds.size === filtered.length && filtered.length > 0 ? (
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary-foreground"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              ) : (
+                <span className="h-2 w-2 bg-primary-foreground" />
+              )}
+            </button>
+            <span className="text-[11px] font-medium text-primary">
+              {selectedIds.size} selected
+            </span>
+          </div>
+          <button
+            onClick={handleDeleteSelected}
+            disabled={isDeleting}
+            className="flex items-center gap-1 rounded bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+          >
+            {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete
+          </button>
+        </div>
+      )}
+
+      {/* ── Optional "Select All" above list when no selection ── */}
+      {selectedIds.size === 0 && filtered.length > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 shrink-0 bg-muted/20">
+          <button 
+            onClick={handleSelectAll}
+            className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <div className="flex h-4 w-4 items-center justify-center rounded border border-input bg-background">
+            </div>
+            Select All
+          </button>
+        </div>
+      )}
+
       {/* Conversation Items.
           `min-h-0` is load-bearing: a flex child defaults to
           min-height:auto, so without it this ScrollArea grows to fit
@@ -528,11 +656,26 @@ export function ConversationList({
                   key={conv.id}
                   conversation={conv}
                   isActive={conv.id === activeConversationId}
+                  isSelected={selectedIds.has(conv.id)}
                   onSelect={handleSelect}
+                  onToggleSelect={handleToggleSelect}
+                  onDelete={handleDeleteSingle}
                   t={t}
                 />
               );
             })}
+            
+            {/* Load Older Chats */}
+            {!showAllTime && filtered.length >= 0 && (
+              <div className="p-4 flex justify-center border-t border-border mt-2">
+                <button
+                  onClick={() => setShowAllTime(true)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Load older chats
+                </button>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>
@@ -543,14 +686,20 @@ export function ConversationList({
 interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
+  isSelected: boolean;
   onSelect: (conversation: Conversation) => void;
+  onToggleSelect: (id: string) => void;
+  onDelete: (id: string) => void;
   t: ReturnType<typeof useTranslations>;
 }
 
 function ConversationItem({
   conversation,
   isActive,
+  isSelected,
   onSelect,
+  onToggleSelect,
+  onDelete,
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
@@ -559,6 +708,7 @@ function ConversationItem({
   const salesMember = conversation.assigned_sales_member;
   const isGroup = isGroupConversation(conversation);
   const [avatarError, setAvatarError] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -571,15 +721,36 @@ function ConversationItem({
     : "";
 
   return (
-    <button
-      onClick={handleClick}
+    <div
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
-        isActive && "border-l-2 border-primary bg-muted/70"
+        "group relative flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50 cursor-pointer",
+        isActive && "border-l-2 border-primary bg-muted/70",
+        isSelected && "bg-primary/5"
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={handleClick}
     >
+      {/* Selection Checkbox */}
+      {(isSelected || isHovered) && (
+        <div 
+          className="absolute left-2 top-3 z-10" 
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(conversation.id); }}
+        >
+          <div className={cn(
+            "h-4 w-4 rounded-sm border flex items-center justify-center transition-colors",
+            isSelected ? "bg-primary border-primary text-primary-foreground" : "border-primary/50 bg-background hover:border-primary"
+          )}>
+            {isSelected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+        </div>
+      )}
+
       {/* Avatar */}
-      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+      <div className={cn(
+        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground transition-opacity",
+        (isSelected || isHovered) ? "opacity-0" : "opacity-100"
+      )}>
         {isGroup ? (
           /* Group avatar — multi-user icon */
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600/20">
@@ -664,6 +835,30 @@ function ConversationItem({
           </div>
         </div>
       </div>
-    </button>
+      
+      {/* Action Menu */}
+      <div 
+        className={cn(
+          "absolute right-2 top-2 z-10 transition-opacity",
+          isHovered ? "opacity-100" : "opacity-0"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex h-6 w-6 items-center justify-center rounded-md bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground shadow-sm">
+            <MoreVertical className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem 
+              onClick={() => onDelete(conversation.id)}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+            >
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   );
 }

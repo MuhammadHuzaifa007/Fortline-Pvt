@@ -14,6 +14,14 @@ export interface NormalizedGatewayMessage {
   participantName?: string;
 }
 
+export interface NormalizedCallEvent {
+  messageId: string;
+  customerPhone: string;
+  isFromMe: boolean;
+  status: 'offer' | 'timeout' | 'reject' | 'accept' | 'ringing';
+  timestamp: string;
+}
+
 export function normalizeGatewayMessage(payload: any): NormalizedGatewayMessage | null {
   const data = payload?.data;
   if (!data || !data.key) return null;
@@ -107,5 +115,31 @@ export function normalizeGatewayMessage(payload: any): NormalizedGatewayMessage 
     chatType,
     participantPhone,
     participantName: isGroup ? data.pushName : undefined,
+  };
+}
+
+export function normalizeCallEvent(payload: any): NormalizedCallEvent | null {
+  // Baileys/Evolution API call event
+  // Usually payload.data is an array of call objects, or a single call object
+  const data = Array.isArray(payload?.data) ? payload.data[0] : payload?.data;
+  if (!data || !data.id || !data.from) return null;
+
+  const rawNumber = data.from.replace(/@.*$/, '');
+  const customerPhone = rawNumber.startsWith('+') ? rawNumber : `+${rawNumber}`;
+
+  let timestamp = new Date().toISOString();
+  if (data.date) {
+    timestamp = new Date(data.date).toISOString();
+  } else if (data.timestamp) {
+    const ms = data.timestamp < 1e11 ? data.timestamp * 1000 : data.timestamp;
+    timestamp = new Date(ms).toISOString();
+  }
+
+  return {
+    messageId: data.id || `call_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    customerPhone,
+    isFromMe: Boolean(data.isFromMe),
+    status: data.status || 'offer',
+    timestamp,
   };
 }

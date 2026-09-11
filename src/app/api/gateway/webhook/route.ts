@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { normalizeGatewayMessage } from '@/lib/gateway/normalize';
+import { normalizeGatewayMessage, normalizeCallEvent } from '@/lib/gateway/normalize';
 
 /**
  * Public Webhook for WhatsApp Multi-Device Gateway (Evolution API / Baileys).
@@ -140,7 +140,10 @@ export async function POST(
 
       if (existingContact) {
         contactId = existingContact.id;
-        if (norm.customerName && (!existingContact.name || existingContact.name === norm.customerPhone)) {
+        const currentNameRaw = (existingContact.name || '').replace(/\D/g, '');
+        const phoneRaw = norm.customerPhone.replace(/\D/g, '');
+        const isNameEmptyOrPhone = !existingContact.name || existingContact.name === norm.customerPhone || (currentNameRaw === phoneRaw && currentNameRaw.length > 5);
+        if (norm.customerName && isNameEmptyOrPhone) {
           await admin
             .from('contacts')
             .update({ name: norm.customerName })
@@ -269,10 +272,134 @@ export async function POST(
           .eq('id', salesMemberId);
       }
 
-      return NextResponse.json({ ok: true, messageId: norm.messageId });
+      return NextResponse.json({ ok: true, type: 'message_saved' });
     }
 
-    return NextResponse.json({ ok: true, unhandledEvent: event });
+    // 4. Handle Call Events
+    if (event === 'call' || event === 'calls.update' || event === 'call.update') {
+      const call = normalizeCallEvent(payload);
+      if (!call) return NextResponse.json({ ok: true, skipped: 'unparseable_call' });
+
+      // Check if call already exists
+      const { data: existingMsg } = await admin
+        .from('messages')
+        .select('id')
+        .eq('message_id', call.messageId)
+        .maybeSingle();
+
+      if (existingMsg) {
+        return NextResponse.json({ ok: true, skipped: 'already_recorded' });
+      }
+
+      // Resolve contact
+      let contactId: string | null = null;
+      const { data: existingContact } = await admin
+        .from('contacts')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('phone', call.customerPhone)
+        .maybeSingle();
+
+      if (existingContact) {
+        contactId = existingContact.id;
+      } else {
+        const { data: newContact, error: contErr } = await admin
+          .from('contacts')
+          .insert({
+            account_id: accountId,
+            phone: call.customerPhone,
+            name: call.customerPhone,
+            assigned_sales_member_id: salesMemberId || null,
+          })
+          .select('id')
+          .single();
+
+        if (contErr || !newContact) return NextResponse.json({ ok: false, error: contErr?.message }, { status: 500 });
+        contactId = newContact.id;
+      }
+
+      // Resolve conversation
+      let conversationId: string | null = null;
+      const { data: existingConv } = await admin
+        .from('conversations')
+        .select('id, unread_count')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .maybeSingle();
+
+      if (existingConv) {
+        conversationId = existingConv.id;
+      } else {
+        const { data: newConv, error: convErr } = await admin
+          .from('conversations')
+          .insert({
+            account_id: accountId,
+            contact_id: contactId,
+            assigned_sales_member_id: salesMemberId || null,
+            channel_phone_number_id: channel.phone_number_id || null,
+            status: 'open',
+            chat_type: 'direct',
+            is_unanswered: !call.isFromMe,
+            unread_count: call.isFromMe ? 0 : 1,
+            last_message_at: call.timestamp,
+            last_message_preview: `📞 ${call.status === 'reject' || call.status === 'timeout' ? 'Missed Call' : 'Incoming Call'}`,
+          })
+          .select('id')
+          .single();
+
+        if (convErr || !newConv) return NextResponse.json({ ok: false, error: convErr?.message }, { status: 500 });
+        conversationId = newConv.id;
+      }
+
+      // Insert Call Message
+      const contentText = call.isFromMe ? 'Outgoing Call' : (call.status === 'reject' || call.status === 'timeout' ? 'Missed Call' : 'Incoming Call');
+      
+      const { error: msgErr } = await admin
+        .from('messages')
+        .insert({
+          account_id: accountId,
+          conversation_id: conversationId,
+          message_id: call.messageId,
+          sender_type: call.isFromMe ? 'agent' : 'customer',
+          sender_phone: call.isFromMe ? channel.channel_name : call.customerPhone,
+          content_type: 'call',
+          content_text: contentText,
+          status: call.isFromMe ? 'sent' : 'received',
+          media_type: 'call', // Ensure media_type is call for the UI
+          created_at: call.timestamp,
+        });
+
+      if (msgErr) {
+        console.error('[gateway-webhook] Failed to save call:', msgErr);
+        return NextResponse.json({ ok: false, error: msgErr.message }, { status: 500 });
+      }
+
+      // Update Conversation Unread
+      if (!call.isFromMe) {
+        const unreadCount = (existingConv?.unread_count || 0) + 1;
+        await admin
+          .from('conversations')
+          .update({
+            unread_count: unreadCount,
+            is_unanswered: true,
+            last_message_at: call.timestamp,
+            last_message_preview: `📞 ${contentText}`,
+          })
+          .eq('id', conversationId);
+      } else {
+        await admin
+          .from('conversations')
+          .update({
+            last_message_at: call.timestamp,
+            last_message_preview: `📞 ${contentText}`,
+          })
+          .eq('id', conversationId);
+      }
+
+      return NextResponse.json({ ok: true, type: 'call_saved' });
+    }
+
+    return NextResponse.json({ ok: true, skipped: 'unhandled_event' });
   } catch (err: any) {
     console.error('[gateway-webhook] Exception:', err);
     return NextResponse.json({ ok: false, error: err?.message || 'Server error' }, { status: 500 });
