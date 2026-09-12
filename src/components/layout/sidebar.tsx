@@ -8,11 +8,16 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import { WhatsAppBadgeLogo, WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
+import { ChannelSwitcher } from "@/components/email/channel-switcher";
+import { useChannel } from "@/hooks/use-channel";
 import {
+  AlertTriangle,
   Bell,
   Crown,
   LayoutDashboard,
   LogOut,
+  Mail,
+  Server,
   Settings,
   Shield,
   User,
@@ -66,7 +71,8 @@ import {
 
 interface NavItem {
   href: string;
-  labelKey: string;
+  labelKey?: string;
+  customLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -77,8 +83,22 @@ const navItems: NavItem[] = [
   { href: "/notifications", labelKey: "notifications", icon: Bell },
 ];
 
-const bottomNavItems = [
+const emailNavItems: NavItem[] = [
+  { href: "/email/dashboard", customLabel: "Email Dashboard", icon: LayoutDashboard },
+  { href: "/email/inbox", customLabel: "Email Inbox", icon: Mail },
+  { href: "/email/sales-members", customLabel: "Sales Members", icon: UsersRound },
+  { href: "/email/accounts", customLabel: "Mailboxes", icon: Server },
+  { href: "/email/alerts", customLabel: "Email Alerts", icon: AlertTriangle },
+  { href: "/contacts", labelKey: "contacts", icon: Users },
+  { href: "/notifications", labelKey: "notifications", icon: Bell },
+];
+
+const bottomNavItems: NavItem[] = [
   { href: "/settings", labelKey: "settings", icon: Settings },
+];
+
+const emailBottomNavItems: NavItem[] = [
+  { href: "/email/settings", customLabel: "Email Settings", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -92,9 +112,13 @@ import { useTranslations } from "next-intl";
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
+  const { activeChannel } = useChannel();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
+
+  const currentNavItems = activeChannel === "email" ? emailNavItems : navItems;
+  const currentBottomNavItems = activeChannel === "email" ? emailBottomNavItems : bottomNavItems;
   // Only surface the account-name strip when it actually carries
   // information. A solo user's personal account is named after them
   // (the 017 signup trigger seeds it from `full_name`), so showing it
@@ -163,7 +187,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+          <Link href={activeChannel === "email" ? "/email/dashboard" : "/dashboard"} className="flex items-center gap-2.5 group">
             <WhatsAppBadgeLogo className="size-8 shrink-0" />
             <div className="flex flex-col min-w-0">
               <span className="truncate text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
@@ -184,13 +208,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </button>
         </div>
 
+        {/* Channel Switcher: WhatsApp CRM | Email CRM */}
+        <ChannelSwitcher className="border-b border-border bg-muted/20" />
+
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {currentNavItems.map((item) => {
               const isActive =
                 pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                (item.href !== "/dashboard" && item.href !== "/email/dashboard" && pathname.startsWith(item.href));
 
               const showUnreadDot =
                 item.href === "/inbox" && totalUnread > 0 && !isActive;
@@ -210,12 +237,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary/10 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{t(item.labelKey as string)}</span>
+                    <span className="flex-1">
+                      {item.customLabel || (item.labelKey ? t(item.labelKey as string) : "")}
+                    </span>
                     {showUnreadDot && (
                       <span
                         aria-label={t("unreadConversations", { count: totalUnread })}
@@ -242,7 +271,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <div className="my-4 border-t border-border" />
 
           <ul className="flex flex-col gap-1">
-            {bottomNavItems.map((item) => {
+            {currentBottomNavItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               return (
                 <li key={item.href}>
@@ -251,12 +280,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary/10 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    {t(item.labelKey as string)}
+                    {item.customLabel || (item.labelKey ? t(item.labelKey as string) : "")}
                   </Link>
                 </li>
               );

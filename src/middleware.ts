@@ -10,6 +10,7 @@ const PROTECTED_PATHS = [
   '/notifications',
   '/contacts',
   '/settings',
+  '/email',
 ]
 
 /**
@@ -44,6 +45,9 @@ const AUTH_PATHS = [
  * normally called by external services rather than logged-in users.
  */
 function isProtectedApiRoute(pathname: string): boolean {
+  if (pathname.startsWith('/api/email/') && !pathname.includes('/webhook')) {
+    return true
+  }
   return (
     pathname.startsWith('/api/whatsapp/') &&
     !pathname.includes('/webhook')
