@@ -92,7 +92,9 @@ export default function ContactsPage() {
 
   // Bulk selection (page-scoped — only the loaded rows are selectable)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
@@ -125,6 +127,7 @@ export default function ContactsPage() {
     // referred to the old page/search results so the bulk bar can't
     // act on rows the user can no longer see.
     setSelected(new Set());
+    setSelectAllMatching(false);
 
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -303,6 +306,7 @@ export default function ContactsPage() {
       const next = new Set(prev);
       if (allOnPageSelected) {
         contacts.forEach((c) => next.delete(c.id));
+        setSelectAllMatching(false);
       } else {
         contacts.forEach((c) => next.add(c.id));
       }
@@ -317,21 +321,68 @@ export default function ContactsPage() {
       else next.add(id);
       return next;
     });
+    setSelectAllMatching(false);
   }
 
   async function handleBulkDelete() {
-    const ids = [...selected];
-    if (ids.length === 0) return;
+    if (!selectAllMatching && selected.size === 0) return;
     setDeleting(true);
 
-    const { error } = await supabase.from('contacts').delete().in('id', ids);
+    try {
+      if (selectAllMatching) {
+        if (selectedTagIds.length > 0) {
+          // Fetch all matching IDs by paginating the RPC
+          let allIds: string[] = [];
+          let offset = 0;
+          const limit = 1000;
+          while (true) {
+            const { data } = await supabase.rpc('filter_contacts_by_tags', {
+              p_tag_ids: selectedTagIds,
+              p_search: search.trim() || null,
+              p_limit: limit,
+              p_offset: offset,
+            });
+            if (!data || data.length === 0) break;
+            const rows = data as { contact: Contact }[];
+            allIds.push(...rows.map((r) => r.contact.id));
+            offset += limit;
+            if (rows.length < limit) break;
+          }
+          // Batch delete in chunks
+          for (let i = 0; i < allIds.length; i += 500) {
+            const chunk = allIds.slice(i, i + 500);
+            await supabase.from('contacts').delete().in('id', chunk);
+          }
+        } else {
+          // No tag filters - we can use a direct query
+          let query = supabase
+            .from('contacts')
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000'); // Requires some filter for safety
+          
+          const term = search.trim();
+          if (term) {
+            const like = `%${term}%`;
+            query = query.or(`name.ilike.${like},phone.ilike.${like},email.ilike.${like}`);
+          }
+          await query;
+        }
+      } else {
+        const ids = [...selected];
+        await supabase.from('contacts').delete().in('id', ids);
+      }
 
-    if (error) {
-      toast.error(t('toastBulkFailedDelete'));
-    } else {
-      toast.success(t('toastBulkDeleted', { count: ids.length }));
+      toast.success(
+        selectAllMatching
+          ? t('toastBulkDeleted', { count: totalCount })
+          : t('toastBulkDeleted', { count: selected.size })
+      );
       setSelected(new Set());
+      setSelectAllMatching(false);
+      setDeleteConfirmText('');
       fetchContacts();
+    } catch (err) {
+      toast.error(t('toastBulkFailedDelete'));
     }
 
     setDeleting(false);
@@ -524,15 +575,42 @@ export default function ContactsPage() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-4 py-2">
-          <p className="text-sm text-foreground">
-            {t('selectedCount', { count: selected.size })}
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-4 py-2">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-foreground">
+              {selectAllMatching
+                ? `All ${totalCount} matching contacts selected.`
+                : t('selectedCount', { count: selected.size })}
+            </p>
+            {!selectAllMatching && totalCount > selected.size && allOnPageSelected && (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setSelectAllMatching(true)}
+                className="text-primary px-0 h-auto"
+              >
+                Select all {totalCount} matching contacts
+              </Button>
+            )}
+            {selectAllMatching && (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setSelectAllMatching(false)}
+                className="text-primary px-0 h-auto"
+              >
+                Clear selection
+              </Button>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelected(new Set())}
+              onClick={() => {
+                setSelected(new Set());
+                setSelectAllMatching(false);
+              }}
               className="text-muted-foreground hover:text-foreground"
             >
               {t('clearSelection')}
@@ -847,20 +925,45 @@ export default function ContactsPage() {
       </Dialog>
 
       {/* Bulk Delete Confirmation */}
-      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+      <Dialog open={bulkDeleteOpen} onOpenChange={(open) => {
+        if (!open) {
+          setBulkDeleteOpen(false);
+          setDeleteConfirmText('');
+        } else {
+          setBulkDeleteOpen(true);
+        }
+      }}>
         <DialogContent className="bg-popover border-border text-popover-foreground sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-popover-foreground">
-              {t('deleteBulkTitle')}
+              {selectAllMatching ? "Delete All Contacts" : t('deleteBulkTitle')}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              {t('deleteBulkDesc', { count: selected.size })}
+              {selectAllMatching
+                ? `You are about to delete ALL ${totalCount} matching contacts. This action is completely irreversible.`
+                : t('deleteBulkDesc', { count: selected.size })}
             </DialogDescription>
           </DialogHeader>
+          
+          {selectAllMatching && (
+            <div className="py-4">
+              <p className="text-sm font-medium mb-2 text-foreground">Type "DELETE" to confirm:</p>
+              <Input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="bg-card border-border text-foreground"
+              />
+            </div>
+          )}
+
           <DialogFooter className="bg-popover border-border">
             <Button
               variant="outline"
-              onClick={() => setBulkDeleteOpen(false)}
+              onClick={() => {
+                setBulkDeleteOpen(false);
+                setDeleteConfirmText('');
+              }}
               className="border-border text-muted-foreground hover:bg-muted"
             >
               {t('cancel')}
@@ -868,9 +971,9 @@ export default function ContactsPage() {
             <Button
               variant="destructive"
               onClick={handleBulkDelete}
-              disabled={deleting}
+              disabled={deleting || (selectAllMatching && deleteConfirmText !== 'DELETE')}
             >
-              {deleting && <Loader2 className="size-4 animate-spin" />}
+              {deleting && <Loader2 className="size-4 animate-spin mr-2" />}
               {t('deleteBtn')}
             </Button>
           </DialogFooter>
