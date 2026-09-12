@@ -435,6 +435,21 @@ export default function ContactsPage() {
               {t('customFieldsBtn')}
             </Button>
           )}
+          {contacts.length > 0 && (
+            <GatedButton
+              variant="outline"
+              canAct={canEdit}
+              gateReason="delete contacts"
+              onClick={() => {
+                setSelectAllMatching(true);
+                setBulkDeleteOpen(true);
+              }}
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="size-4 mr-2" />
+              Delete All
+            </GatedButton>
+          )}
           <GatedButton
             variant="outline"
             canAct={canEdit}

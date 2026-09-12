@@ -737,13 +737,13 @@ export function FortlineSalesMembersSettings() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 pt-2">
-            <div className="p-3 rounded-lg bg-muted/60 border border-border text-xs space-y-1">
+          <div className="space-y-4 pt-2 overflow-hidden">
+            <div className="p-3 rounded-lg bg-muted/60 border border-border text-xs space-y-1 overflow-x-auto">
               <p className="font-semibold text-foreground">Paste format (one per line):</p>
-              <p className="font-mono text-[11px] text-muted-foreground">
+              <p className="font-mono text-[11px] text-muted-foreground break-words whitespace-pre-wrap">
                 Full Name, Phone Number, Division, Designation
               </p>
-              <p className="text-muted-foreground mt-1">
+              <p className="text-muted-foreground mt-1 text-[11px] break-words whitespace-pre-wrap">
                 Example:<br />
                 <span className="font-mono">Tariq Jamil, +923001234567, Enterprise Servers, Lead Specialist</span><br />
                 <span className="font-mono">Hamza Khan, +923217654321, Laptops & Fleet, Account Manager</span>
