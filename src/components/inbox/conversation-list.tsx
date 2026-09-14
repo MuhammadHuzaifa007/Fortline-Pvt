@@ -845,7 +845,7 @@ function ConversationItem({
         onClick={(e) => e.stopPropagation()}
       >
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex h-6 w-6 items-center justify-center rounded-md bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground shadow-sm">
+          <DropdownMenuTrigger className="flex h-6 w-6 items-center justify-center rounded-full bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground shadow-sm">
             <MoreVertical className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">

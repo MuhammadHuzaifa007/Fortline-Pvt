@@ -103,7 +103,7 @@ export default function EmailAccountsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-blue-500/10 text-[#0078D4] border border-blue-500/20">
+            <div className="p-2 rounded-full bg-red-500/10 text-[#EA4335] border border-red-500/20">
               <Server className="w-5 h-5" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -122,7 +122,7 @@ export default function EmailAccountsPage() {
             size="sm"
             onClick={handleRenewWebhooks}
             disabled={renewingSubs}
-            className="gap-1.5 h-9 text-xs"
+            className="gap-1.5 h-9 text-xs rounded-full"
           >
             <Radio className={`w-3.5 h-3.5 ${renewingSubs ? 'animate-pulse' : ''}`} />
             Renew Webhooks
@@ -133,7 +133,7 @@ export default function EmailAccountsPage() {
             size="sm"
             onClick={handleSyncAll}
             disabled={syncingAll}
-            className="gap-1.5 h-9 text-xs font-semibold bg-[#0078D4] hover:bg-[#0078D4]/90 text-white"
+            className="gap-1.5 h-9 text-xs font-semibold bg-[#EA4335] hover:bg-[#D93025] text-white rounded-full shadow-sm"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
             Sync All Mailboxes

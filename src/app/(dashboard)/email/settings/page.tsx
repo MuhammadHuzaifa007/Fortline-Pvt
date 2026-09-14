@@ -82,7 +82,7 @@ export default function EmailSettingsPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-blue-500/10 text-[#0078D4] border border-blue-500/20">
+          <div className="p-2 rounded-full bg-red-500/10 text-[#EA4335] border border-red-500/20">
             <Settings className="w-5 h-5" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -215,7 +215,7 @@ export default function EmailSettingsPage() {
           <Button
             type="submit"
             disabled={saving}
-            className="gap-1.5 h-9 text-xs font-semibold px-5"
+            className="gap-1.5 h-9 text-xs font-semibold px-5 rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white shadow-sm"
           >
             {saving ? (
               <>

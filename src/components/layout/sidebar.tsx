@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
-import { WhatsAppBadgeLogo, WhatsAppChatsIcon } from "@/components/icons/whatsapp-business-logo";
+import { WhatsAppBadgeLogo, WhatsAppChatsIcon, EmailBadgeLogo } from "@/components/icons/whatsapp-business-logo";
 import { ChannelSwitcher } from "@/components/email/channel-switcher";
 import { useChannel } from "@/hooks/use-channel";
 import {
@@ -188,13 +188,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href={activeChannel === "email" ? "/email/dashboard" : "/dashboard"} className="flex items-center gap-2.5 group">
-            <WhatsAppBadgeLogo className="size-8 shrink-0" />
+            {activeChannel === "email" ? (
+              <EmailBadgeLogo className="size-8 shrink-0" />
+            ) : (
+              <WhatsAppBadgeLogo className="size-8 shrink-0" />
+            )}
             <div className="flex flex-col min-w-0">
               <span className="truncate text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
                 Fortline-Pvt
               </span>
-              <span className="truncate text-[11px] font-semibold text-[#008069] leading-none">
-                Executive Sales CRM
+              <span
+                className={cn(
+                  "truncate text-[11px] font-semibold leading-none",
+                  activeChannel === "email" ? "text-[#EA4335]" : "text-[#008069]"
+                )}
+              >
+                {activeChannel === "email" ? "Email Sales CRM" : "Executive Sales CRM"}
               </span>
             </div>
           </Link>
@@ -237,7 +246,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-primary/10 text-primary font-semibold"
+                        ? activeChannel === "email"
+                          ? "bg-[#EA4335]/10 text-[#EA4335] font-semibold border-l-2 border-[#EA4335]"
+                          : "bg-primary/10 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
@@ -257,7 +268,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     {showNotificationBadge && (
                       <span
                         aria-label={t("unreadNotifications", { count: unreadNotifications })}
-                        className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground"
+                        className={cn(
+                          "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white",
+                          activeChannel === "email" ? "bg-[#EA4335]" : "bg-primary"
+                        )}
                       >
                         {unreadNotifications > 9 ? "9+" : unreadNotifications}
                       </span>
@@ -280,7 +294,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
-                        ? "bg-primary/10 text-primary font-semibold"
+                        ? activeChannel === "email"
+                          ? "bg-[#EA4335]/10 text-[#EA4335] font-semibold border-l-2 border-[#EA4335]"
+                          : "bg-primary/10 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >

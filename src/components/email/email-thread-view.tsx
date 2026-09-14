@@ -151,9 +151,9 @@ export function EmailThreadView({
               size="sm"
               onClick={handleTogglePriority}
               disabled={updating}
-              className="h-8 text-xs"
+              className="h-8 text-xs rounded-full"
             >
-              <Flag className={cn('w-3.5 h-3.5 mr-1', thread.priority === 'high' && 'text-destructive fill-destructive')} />
+              <Flag className={cn('w-3.5 h-3.5 mr-1', thread.priority === 'high' && 'text-[#EA4335] fill-[#EA4335]')} />
               {thread.priority === 'high' ? 'High' : 'Normal'}
             </Button>
 
@@ -163,7 +163,7 @@ export function EmailThreadView({
               size="sm"
               onClick={handleToggleStatus}
               disabled={updating}
-              className="h-8 text-xs"
+              className="h-8 text-xs rounded-full"
             >
               {thread.status === 'open' ? (
                 <>
@@ -172,7 +172,7 @@ export function EmailThreadView({
                 </>
               ) : (
                 <>
-                  <Unlock className="w-3.5 h-3.5 mr-1 text-primary" />
+                  <Unlock className="w-3.5 h-3.5 mr-1 text-[#EA4335]" />
                   Reopen
                 </>
               )}
@@ -230,7 +230,7 @@ export function EmailThreadView({
               type="button"
               size="sm"
               onClick={() => handleOpenReply(lastMessage, false)}
-              className="gap-1.5 h-8 text-xs font-semibold"
+              className="gap-1.5 h-8 text-xs font-semibold rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white shadow-sm px-4"
             >
               <Reply className="w-3.5 h-3.5" />
               Reply
@@ -240,7 +240,7 @@ export function EmailThreadView({
               variant="outline"
               size="sm"
               onClick={() => handleOpenReply(lastMessage, true)}
-              className="gap-1.5 h-8 text-xs"
+              className="gap-1.5 h-8 text-xs rounded-full px-4"
             >
               <ReplyAll className="w-3.5 h-3.5" />
               Reply All
@@ -250,7 +250,7 @@ export function EmailThreadView({
               variant="outline"
               size="sm"
               onClick={() => handleOpenForward(lastMessage)}
-              className="gap-1.5 h-8 text-xs"
+              className="gap-1.5 h-8 text-xs rounded-full px-4"
             >
               <Forward className="w-3.5 h-3.5" />
               Forward

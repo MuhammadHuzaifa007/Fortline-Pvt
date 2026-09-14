@@ -125,7 +125,7 @@ export default function SalesMemberEmailDetailPage({
               type="button"
               size="sm"
               onClick={() => setComposerOpen(true)}
-              className="gap-1.5 h-9 text-xs font-semibold bg-[#0078D4] hover:bg-[#0078D4]/90 text-white"
+              className="gap-1.5 h-9 text-xs font-semibold bg-[#EA4335] hover:bg-[#D93025] text-white rounded-full shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
               Send As {member.name.split(' ')[0]}

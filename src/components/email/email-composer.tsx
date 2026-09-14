@@ -167,7 +167,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+            className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             <X className="w-4 h-4" />
           </button>
@@ -313,6 +313,7 @@ export function EmailComposer({
                 size="sm"
                 onClick={onClose}
                 disabled={sending}
+                className="rounded-full px-4"
               >
                 Cancel
               </Button>
@@ -320,7 +321,7 @@ export function EmailComposer({
                 type="submit"
                 size="sm"
                 disabled={sending}
-                className="gap-1.5 px-4"
+                className="gap-1.5 px-5 rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white font-semibold shadow-md"
               >
                 {sending ? (
                   <>

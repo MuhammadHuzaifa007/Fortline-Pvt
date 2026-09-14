@@ -7,7 +7,6 @@ import {
   Filter,
   ArrowUpDown,
   ExternalLink,
-  MessageSquare,
   Clock,
   Wifi,
   UserX,
