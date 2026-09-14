@@ -198,7 +198,7 @@ export default function EmailDashboardPage() {
           </div>
           <Link
             href="/email/accounts"
-            className="text-xs font-semibold text-primary hover:underline"
+            className="text-xs font-semibold text-[#2B60DE] hover:underline"
           >
             Manage Accounts &rarr;
           </Link>
@@ -252,7 +252,7 @@ export default function EmailDashboardPage() {
                   <td className="p-3 text-right">
                     <Link
                       href={`/email/inbox?account_id=${acc.id}`}
-                      className="text-primary hover:underline font-medium"
+                      className="text-[#2B60DE] hover:underline font-medium"
                     >
                       View Inbox &rarr;
                     </Link>

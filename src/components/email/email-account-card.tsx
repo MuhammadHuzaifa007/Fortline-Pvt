@@ -78,7 +78,7 @@ export function EmailAccountCard({ account, onRefreshed }: EmailAccountCardProps
       className={cn(
         'flex flex-col justify-between p-4 rounded-xl border bg-card shadow-sm transition-all',
         isConnected
-          ? 'border-border hover:border-primary/40'
+          ? 'border-border hover:border-[#2B60DE]/40'
           : isError
             ? 'border-destructive/40 bg-destructive/5'
             : 'border-border/60 opacity-90',
@@ -184,7 +184,7 @@ export function EmailAccountCard({ account, onRefreshed }: EmailAccountCardProps
           {syncing ? (
             <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <RefreshCw className="w-3 h-3 text-primary" />
+            <RefreshCw className="w-3 h-3 text-[#2B60DE]" />
           )}
           Sync Now
         </Button>

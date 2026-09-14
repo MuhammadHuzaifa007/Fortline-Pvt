@@ -183,7 +183,7 @@ export function EmailComposer({
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#2B60DE]"
             >
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
@@ -219,7 +219,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setShowCc(true)}
-                className="text-xs text-primary hover:underline px-1"
+                className="text-xs text-[#2B60DE] hover:underline px-1"
               >
                 + CC
               </button>
@@ -264,7 +264,7 @@ export function EmailComposer({
               placeholder="Write your email here..."
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
-              className="w-full rounded-md border border-input bg-background p-3 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-primary font-sans resize-none"
+              className="w-full rounded-md border border-input bg-background p-3 text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#2B60DE] font-sans resize-none"
               required
             />
           </div>

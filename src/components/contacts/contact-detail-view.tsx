@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
+import { useChannel } from '@/hooks/use-channel';
+import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
@@ -58,6 +60,8 @@ export function ContactDetailView({
   const t = useTranslations('Contacts.detailView');
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
+  const { activeChannel } = useChannel();
+  const isEmail = activeChannel === 'email';
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
@@ -385,7 +389,7 @@ export function ContactDetailView({
       >
         {loading || !contact ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="size-6 animate-spin text-primary" />
+            <Loader2 className={cn("size-6 animate-spin", isEmail ? "text-[#2B60DE]" : "text-primary")} />
           </div>
         ) : (
           <div className="flex flex-col h-full">
@@ -393,7 +397,12 @@ export function ContactDetailView({
             <SheetHeader className="p-4 border-b border-border/50">
               <div className="flex items-center gap-3">
                 <Avatar className="size-12 bg-muted border border-border">
-                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+                  <AvatarFallback
+                    className={cn(
+                      "text-sm font-medium",
+                      isEmail ? "bg-[#2B60DE]/10 text-[#2B60DE]" : "bg-primary/10 text-primary"
+                    )}
+                  >
                     {getInitials(contact.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -407,12 +416,12 @@ export function ContactDetailView({
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                     <button
                       onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      className={cn("flex items-center gap-1 transition-colors cursor-pointer", isEmail ? "hover:text-[#2B60DE]" : "hover:text-primary")}
                     >
                       <Phone className="size-3" />
                       {contact.phone}
                       {copiedPhone ? (
-                        <Check className="size-3 text-primary" />
+                        <Check className={cn("size-3", isEmail ? "text-[#2B60DE]" : "text-primary")} />
                       ) : (
                         <Copy className="size-3" />
                       )}
@@ -437,7 +446,7 @@ export function ContactDetailView({
                   size="sm"
                   onClick={() => setTemplatePickerOpen(true)}
                   disabled={sendingTemplate}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  className={cn(isEmail ? "bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90")}
                 >
                   {sendingTemplate ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -454,31 +463,31 @@ export function ContactDetailView({
               <TabsList className="bg-muted/50 border-b border-border mx-4 mt-3">
                 <TabsTrigger
                   value="details"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className={cn("text-muted-foreground", isEmail ? "data-active:bg-muted data-active:text-[#2B60DE]" : "data-active:bg-muted data-active:text-primary")}
                 >
                   {t('tabs.details')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="tags"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className={cn("text-muted-foreground", isEmail ? "data-active:bg-muted data-active:text-[#2B60DE]" : "data-active:bg-muted data-active:text-primary")}
                 >
                   {t('tabs.tags')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="notes"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className={cn("text-muted-foreground", isEmail ? "data-active:bg-muted data-active:text-[#2B60DE]" : "data-active:bg-muted data-active:text-primary")}
                 >
                   {t('tabs.notes')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="custom"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className={cn("text-muted-foreground", isEmail ? "data-active:bg-muted data-active:text-[#2B60DE]" : "data-active:bg-muted data-active:text-primary")}
                 >
                   {t('tabs.custom')}
                 </TabsTrigger>
                 <TabsTrigger
                   value="deals"
-                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                  className={cn("text-muted-foreground", isEmail ? "data-active:bg-muted data-active:text-[#2B60DE]" : "data-active:bg-muted data-active:text-primary")}
                 >
                   {t('tabs.deals')}
                 </TabsTrigger>
@@ -524,7 +533,7 @@ export function ContactDetailView({
                   <Button
                     onClick={saveDetails}
                     disabled={savingDetails}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
+                    className={cn("w-full", isEmail ? "bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white" : "bg-primary hover:bg-primary/90 text-primary-foreground")}
                     size="sm"
                   >
                     {savingDetails ? (
@@ -588,7 +597,7 @@ export function ContactDetailView({
                   <Button
                     onClick={addNote}
                     disabled={!newNote.trim() || savingNote}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    className={cn(isEmail ? "bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white" : "bg-primary hover:bg-primary/90 text-primary-foreground")}
                     size="sm"
                   >
                     {savingNote ? (
@@ -674,7 +683,7 @@ export function ContactDetailView({
                     <Button
                       onClick={saveCustomFields}
                       disabled={savingCustom}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
+                      className={cn("w-full", isEmail ? "bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white" : "bg-primary hover:bg-primary/90 text-primary-foreground")}
                       size="sm"
                     >
                       {savingCustom ? (
@@ -692,7 +701,7 @@ export function ContactDetailView({
               <TabsContent value="deals" className="flex-1 overflow-y-auto px-4 py-3">
                 {loadingDeals ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-5 animate-spin text-primary" />
+                    <Loader2 className={cn("size-5 animate-spin", isEmail ? "text-[#2B60DE]" : "text-primary")} />
                   </div>
                 ) : deals.length === 0 ? (
                   <p className="text-xs text-muted-foreground">{t('dealsTab.noDeals')}</p>

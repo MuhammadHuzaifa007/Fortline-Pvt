@@ -280,7 +280,7 @@ export default function SalesMembersEmailPage() {
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             href={`/email/sales-members/${rep.id}`}
-                            className="text-primary hover:underline font-semibold"
+                            className="text-[#2B60DE] hover:underline font-semibold"
                           >
                             Details
                           </Link>

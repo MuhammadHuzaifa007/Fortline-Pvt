@@ -72,7 +72,7 @@ export default function EmailSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#2B60DE] border-t-transparent" />
       </div>
     )
   }
@@ -98,7 +98,7 @@ export default function EmailSettingsPage() {
         {/* SLA Section */}
         <div className="p-5 rounded-xl border border-border bg-card shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-border pb-3">
-            <Clock className="w-4 h-4 text-primary" />
+            <Clock className="w-4 h-4 text-[#2B60DE]" />
             <h2 className="text-sm font-bold text-foreground">SLA & Response Time Thresholds</h2>
           </div>
 

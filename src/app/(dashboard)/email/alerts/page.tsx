@@ -190,7 +190,7 @@ export default function EmailAlertsPage() {
 
                 <Link
                   href="/email/accounts"
-                  className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                  className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-[#2B60DE] hover:underline"
                 >
                   Manage Mailbox <ArrowRight className="w-3.5 h-3.5" />
                 </Link>

@@ -187,7 +187,7 @@ export default function EmailAccountsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#2B60DE]"
           >
             <option value="">All Statuses</option>
             <option value="connected">Connected</option>

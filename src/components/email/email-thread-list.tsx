@@ -37,7 +37,7 @@ export function EmailThreadList({
   if (threads.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-        <CheckCircle2 className="w-8 h-8 mb-2 opacity-40 text-primary" />
+        <CheckCircle2 className="w-8 h-8 mb-2 opacity-40 text-[#2B60DE]" />
         <p className="text-sm font-medium">No email threads found</p>
         <p className="text-xs mt-1">Adjust your filters or sync mailboxes.</p>
       </div>
@@ -71,9 +71,9 @@ export function EmailThreadList({
             className={cn(
               'w-full text-left p-3.5 transition-colors flex flex-col gap-1.5 relative border-l-2',
               isSelected
-                ? 'bg-primary/10 border-l-primary'
+                ? 'bg-[#2B60DE]/10 border-l-[#2B60DE]'
                 : hasUnread
-                  ? 'bg-muted/30 hover:bg-muted/50 border-l-primary/60 font-medium'
+                  ? 'bg-muted/30 hover:bg-muted/50 border-l-[#2B60DE]/60 font-medium'
                   : 'hover:bg-muted/20 border-l-transparent text-muted-foreground',
             )}
           >
@@ -138,7 +138,7 @@ export function EmailThreadList({
                 )}
 
                 {hasUnread && (
-                  <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#2B60DE] shrink-0" />
                 )}
               </div>
             </div>

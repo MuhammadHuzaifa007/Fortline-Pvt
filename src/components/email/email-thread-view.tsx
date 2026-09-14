@@ -43,7 +43,7 @@ export function EmailThreadView({
   if (!thread) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground bg-muted/5">
-        <Mail className="w-12 h-12 mb-3 opacity-25 text-primary" />
+        <Mail className="w-12 h-12 mb-3 opacity-25 text-[#2B60DE]" />
         <p className="text-base font-semibold text-foreground">Select an Email Conversation</p>
         <p className="text-xs max-w-sm mt-1">
           Choose a thread from the inbox list on the left to monitor, reply, or forward messages.
@@ -131,7 +131,7 @@ export function EmailThreadView({
 
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
               <span className="flex items-center gap-1">
-                <User className="w-3 h-3 text-primary" />
+                <User className="w-3 h-3 text-[#2B60DE]" />
                 <span className="text-foreground font-semibold">
                   {thread.client_name || thread.client_email}
                 </span>

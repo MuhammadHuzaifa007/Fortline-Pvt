@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { ChannelProvider } from "@/hooks/use-channel";
+import { ChannelProvider, useChannel } from "@/hooks/use-channel";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
+import { cn } from "@/lib/utils";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -14,7 +15,14 @@ import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { activeChannel } = useChannel();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isEmail =
+    activeChannel === "email" ||
+    pathname?.startsWith("/email") ||
+    (typeof window !== "undefined" && localStorage.getItem("fortline_active_channel") === "email");
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible and this stays at `false` (ignored by the component).
@@ -31,7 +39,12 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div
+            className={cn(
+              "h-8 w-8 animate-spin rounded-full border-2 border-t-transparent",
+              isEmail ? "border-[#2B60DE]" : "border-primary"
+            )}
+          />
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>

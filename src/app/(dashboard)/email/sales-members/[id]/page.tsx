@@ -70,7 +70,7 @@ export default function SalesMemberEmailDetailPage({
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#2B60DE] border-t-transparent" />
       </div>
     )
   }
@@ -79,7 +79,7 @@ export default function SalesMemberEmailDetailPage({
     return (
       <div className="p-8 text-center text-muted-foreground">
         <p>Sales member not found.</p>
-        <Link href="/email/sales-members" className="text-primary hover:underline text-xs mt-2 inline-block">
+        <Link href="/email/sales-members" className="text-[#2B60DE] hover:underline text-xs mt-2 inline-block">
           &larr; Back to Sales Members
         </Link>
       </div>
@@ -105,7 +105,7 @@ export default function SalesMemberEmailDetailPage({
       {/* Member Header Card */}
       <div className="p-5 rounded-xl border border-border bg-card shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-lg font-black border border-primary/20">
+          <div className="w-12 h-12 rounded-xl bg-[#2B60DE]/10 text-[#2B60DE] flex items-center justify-center text-lg font-black border border-[#2B60DE]/20">
             {member.name.charAt(0)}
           </div>
           <div className="flex flex-col">
@@ -113,7 +113,7 @@ export default function SalesMemberEmailDetailPage({
             <p className="text-xs text-muted-foreground">
               {member.division} &bull; {member.designation} &bull; {member.phone_number}
             </p>
-            <span className="font-mono text-xs text-primary font-semibold mt-0.5">
+            <span className="font-mono text-xs text-[#2B60DE] font-semibold mt-0.5">
               {account?.email_address || member.email_address}
             </span>
           </div>
@@ -229,7 +229,7 @@ export default function SalesMemberEmailDetailPage({
                     <td className="p-3 text-right">
                       <Link
                         href={`/email/inbox?thread_id=${thread.id}`}
-                        className="text-primary hover:underline font-semibold"
+                        className="text-[#2B60DE] hover:underline font-semibold"
                       >
                         Inspect &rarr;
                       </Link>

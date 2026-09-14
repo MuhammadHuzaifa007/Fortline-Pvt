@@ -205,7 +205,7 @@ export function EmailMessageCard({
                     download={att.filename}
                     className="flex items-center gap-2 p-2 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-xs"
                   >
-                    <Download className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <Download className="w-3.5 h-3.5 text-[#2B60DE] shrink-0" />
                     <div className="flex flex-col min-w-0">
                       <span className="truncate max-w-[180px] font-medium">
                         {att.filename}

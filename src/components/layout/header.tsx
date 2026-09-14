@@ -76,7 +76,12 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                 {initial}
               </AvatarFallback>
             </Avatar>
-            <span className="hidden text-sm font-medium text-foreground sm:inline">
+            <span
+              className={cn(
+                "hidden text-sm font-semibold sm:inline",
+                activeChannel === "email" ? "text-[#2B60DE]" : "text-foreground"
+              )}
+            >
               {profile?.full_name ?? t("defaultUser")}
             </span>
           </DropdownMenuTrigger>
@@ -86,7 +91,12 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             className="min-w-56 bg-popover text-popover-foreground ring-border"
           >
             <div className="px-2 py-1.5">
-              <p className="truncate text-sm font-medium text-foreground">
+              <p
+                className={cn(
+                  "truncate text-sm font-semibold",
+                  activeChannel === "email" ? "text-[#2B60DE]" : "text-foreground"
+                )}
+              >
                 {profile?.full_name ?? t("defaultUser")}
               </p>
               <p className="truncate text-xs text-muted-foreground">

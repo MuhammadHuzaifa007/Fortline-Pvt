@@ -51,7 +51,7 @@ export function EmailFilters({
         <select
           value={salesRepId}
           onChange={(e) => onSalesRepChange(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#2B60DE]"
         >
           <option value="">All Sales Members ({salesMembers.length})</option>
           {salesMembers.map((m) => (
@@ -65,7 +65,7 @@ export function EmailFilters({
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#2B60DE]"
         >
           <option value="">All Statuses</option>
           <option value="open">Open Threads</option>
@@ -76,7 +76,7 @@ export function EmailFilters({
         <select
           value={waitingFor}
           onChange={(e) => onWaitingForChange(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="h-8 rounded-md border border-input bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#2B60DE]"
         >
           <option value="">All Waiting States</option>
           <option value="employee">Waiting for Rep</option>

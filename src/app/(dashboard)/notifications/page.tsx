@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useChannel } from "@/hooks/use-channel";
 import type { Notification } from "@/types";
 import {
   Bell,
@@ -39,6 +40,8 @@ const TYPE_ICON: Record<string, typeof Bell> = {
 export default function NotificationsPage() {
   const router = useRouter();
   const { accountId } = useAuth();
+  const { activeChannel } = useChannel();
+  const isEmail = activeChannel === "email";
   const [notifications, setNotifications] = useState<Notification[] | null>(
     null,
   );
@@ -171,7 +174,12 @@ export default function NotificationsPage() {
   if (notifications === null) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <Loader2
+          className={cn(
+            "h-6 w-6 animate-spin",
+            isEmail ? "text-[#2B60DE]" : "text-primary"
+          )}
+        />
       </div>
     );
   }
@@ -182,7 +190,9 @@ export default function NotificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Executive Alerts & Notifications</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            CEO monitoring alerts for SLA breaches, unanswered client inquiries, and WhatsApp channel connectivity.
+            {isEmail
+              ? "CEO monitoring alerts for SLA breaches, unanswered client inquiries, and Microsoft 365 Exchange connectivity."
+              : "CEO monitoring alerts for SLA breaches, unanswered client inquiries, and WhatsApp channel connectivity."}
           </p>
         </div>
         <Button
@@ -202,8 +212,13 @@ export default function NotificationsPage() {
 
       {notifications.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Bell className="h-6 w-6 text-primary" />
+          <div
+            className={cn(
+              "flex h-12 w-12 items-center justify-center rounded-xl",
+              isEmail ? "bg-[#2B60DE]/10 text-[#2B60DE]" : "bg-primary/10 text-primary"
+            )}
+          >
+            <Bell className="h-6 w-6" />
           </div>
           <p className="mt-3 text-sm font-medium text-foreground">
             No notifications yet
@@ -227,7 +242,9 @@ export default function NotificationsPage() {
                   className={cn(
                     "flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors",
                     isUnread
-                      ? "border-primary/30 bg-primary/5 hover:border-primary/50"
+                      ? isEmail
+                        ? "border-[#2B60DE]/30 bg-[#2B60DE]/5 hover:border-[#2B60DE]/50"
+                        : "border-primary/30 bg-primary/5 hover:border-primary/50"
                       : "border-border bg-card hover:border-border/70",
                   )}
                 >
@@ -236,7 +253,11 @@ export default function NotificationsPage() {
                       "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg",
                       severity === 'critical'
                         ? 'bg-rose-500/15 text-rose-500'
-                        : isUnread ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                        : isUnread
+                          ? isEmail
+                            ? "bg-[#2B60DE]/15 text-[#2B60DE]"
+                            : "bg-primary/15 text-primary"
+                          : "bg-muted text-muted-foreground",
                     )}
                     aria-hidden
                   >
@@ -260,7 +281,10 @@ export default function NotificationsPage() {
                       {isUnread && (
                         <span
                           aria-label="Unread"
-                          className="h-2 w-2 flex-shrink-0 rounded-full bg-primary"
+                          className={cn(
+                            "h-2 w-2 flex-shrink-0 rounded-full",
+                            isEmail ? "bg-[#2B60DE]" : "bg-primary"
+                          )}
                         />
                       )}
                     </div>

@@ -194,7 +194,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <WhatsAppBadgeLogo className="size-8 shrink-0" />
             )}
             <div className="flex flex-col min-w-0">
-              <span className="truncate text-sm font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">
+              <span
+                className={cn(
+                  "truncate text-sm font-bold tracking-tight text-foreground transition-colors",
+                  activeChannel === "email" ? "group-hover:text-[#2B60DE]" : "group-hover:text-primary"
+                )}
+              >
                 Fortline-Pvt
               </span>
               <span
@@ -321,9 +326,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             {(() => {
               const meta = (accountRole && ROLE_CHIP[accountRole]) || ROLE_CHIP.owner;
               const Icon = meta.icon;
+              const chipClass = accountRole === "admin" && activeChannel === "email"
+                ? "border-[#2B60DE]/40 bg-[#2B60DE]/10 text-[#2B60DE]"
+                : meta.className;
               return (
                 <span
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide ${meta.className}`}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide ${chipClass}`}
                 >
                   <Icon className="size-3" />
                   {meta.label}
@@ -340,14 +348,26 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     alt={profile.full_name ?? t("defaultAvatar")}
                   />
                 ) : null}
-                <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                <AvatarFallback
+                  className={cn(
+                    "text-sm font-medium",
+                    activeChannel === "email"
+                      ? "bg-[#2B60DE]/10 text-[#2B60DE]"
+                      : "bg-primary/10 text-primary"
+                  )}
+                >
                   {profile?.full_name?.charAt(0)?.toUpperCase() ??
                     profile?.email?.charAt(0)?.toUpperCase() ??
                     "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
+                <p
+                  className={cn(
+                    "truncate text-sm font-semibold",
+                    activeChannel === "email" ? "text-[#2B60DE]" : "text-foreground"
+                  )}
+                >
                   {profile?.full_name ?? t("defaultUser")}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
