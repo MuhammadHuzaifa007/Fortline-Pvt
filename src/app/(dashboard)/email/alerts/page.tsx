@@ -52,7 +52,7 @@ export default function EmailAlertsPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            <div className="p-2 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -70,7 +70,7 @@ export default function EmailAlertsPage() {
           size="sm"
           onClick={loadAlerts}
           disabled={loading}
-          className="gap-1.5 h-8 text-xs"
+          className="gap-1.5 h-8 text-xs rounded-full"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -81,7 +81,7 @@ export default function EmailAlertsPage() {
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-            <Clock className="w-4 h-4 text-destructive" />
+            <Clock className="w-4 h-4 text-[#2B60DE]" />
             Overdue Client Responses ({overdueAlerts.length})
           </h2>
         </div>
@@ -94,7 +94,7 @@ export default function EmailAlertsPage() {
           </div>
         ) : overdueAlerts.length === 0 ? (
           <div className="p-6 rounded-xl border border-border bg-card text-center text-muted-foreground flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle2 className="w-4 h-4 text-[#2B60DE]" />
             <span className="text-xs">No overdue emails! All client responses are within SLA thresholds.</span>
           </div>
         ) : (
@@ -102,10 +102,10 @@ export default function EmailAlertsPage() {
             {overdueAlerts.map((alert) => (
               <div
                 key={alert.id}
-                className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 flex items-center justify-between gap-4 shadow-sm"
+                className="p-4 rounded-xl border border-blue-600/30 bg-blue-600/5 flex items-center justify-between gap-4 shadow-sm"
               >
                 <div className="flex items-start gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-destructive/10 text-destructive shrink-0 mt-0.5">
+                  <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE] shrink-0 mt-0.5">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col min-w-0">
@@ -124,7 +124,7 @@ export default function EmailAlertsPage() {
                 {alert.metadata?.thread_id && (
                   <Link
                     href={`/email/inbox?thread_id=${alert.metadata.thread_id}`}
-                    className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-destructive hover:underline"
+                    className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-[#2B60DE] hover:underline"
                   >
                     Reply Now <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
@@ -152,7 +152,7 @@ export default function EmailAlertsPage() {
           </div>
         ) : infraAlerts.length === 0 ? (
           <div className="p-6 rounded-xl border border-border bg-card text-center text-muted-foreground flex items-center justify-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle2 className="w-4 h-4 text-[#2B60DE]" />
             <span className="text-xs">All monitored mailboxes and webhook subscriptions are functioning normally.</span>
           </div>
         ) : (
@@ -163,16 +163,16 @@ export default function EmailAlertsPage() {
                 className={cn(
                   'p-4 rounded-xl border flex items-center justify-between gap-4 shadow-sm',
                   alert.severity === 'critical'
-                    ? 'border-destructive/30 bg-destructive/5'
+                    ? 'border-blue-600/30 bg-blue-600/5'
                     : 'border-amber-500/30 bg-amber-500/5',
                 )}
               >
                 <div className="flex items-start gap-3 min-w-0">
                   <div
                     className={cn(
-                      'p-2 rounded-lg shrink-0 mt-0.5',
+                      'p-2 rounded-full shrink-0 mt-0.5',
                       alert.severity === 'critical'
-                        ? 'bg-destructive/10 text-destructive'
+                        ? 'bg-blue-600/10 text-[#2B60DE]'
                         : 'bg-amber-500/10 text-amber-500',
                     )}
                   >

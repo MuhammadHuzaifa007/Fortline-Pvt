@@ -321,7 +321,7 @@ export function EmailComposer({
                 type="submit"
                 size="sm"
                 disabled={sending}
-                className="gap-1.5 px-5 rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white font-semibold shadow-md"
+                className="gap-1.5 px-5 rounded-full bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white font-semibold shadow-md"
               >
                 {sending ? (
                   <>

@@ -82,7 +82,7 @@ export default function EmailSettingsPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-full bg-red-500/10 text-[#EA4335] border border-red-500/20">
+          <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE] border border-blue-600/20">
             <Settings className="w-5 h-5" />
           </div>
           <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -144,7 +144,7 @@ export default function EmailSettingsPage() {
         {/* Business Hours & Timezone */}
         <div className="p-5 rounded-xl border border-border bg-card shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-border pb-3">
-            <Calendar className="w-4 h-4 text-emerald-500" />
+            <Calendar className="w-4 h-4 text-[#2B60DE]" />
             <h2 className="text-sm font-bold text-foreground">Business Hours & Timezone</h2>
           </div>
 
@@ -215,7 +215,7 @@ export default function EmailSettingsPage() {
           <Button
             type="submit"
             disabled={saving}
-            className="gap-1.5 h-9 text-xs font-semibold px-5 rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white shadow-sm"
+            className="gap-1.5 h-9 text-xs font-semibold px-5 rounded-full bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white shadow-sm"
           >
             {saving ? (
               <>

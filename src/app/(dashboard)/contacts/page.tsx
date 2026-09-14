@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
 import { useCan } from '@/hooks/use-can';
+import { useChannel } from '@/hooks/use-channel';
 import { GatedButton } from '@/components/ui/gated-button';
 import { useTranslations } from 'next-intl';
 
@@ -67,6 +69,7 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const t = useTranslations('Contacts.page');
   const supabase = createClient();
+  const { activeChannel } = useChannel();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
 
@@ -464,7 +467,12 @@ export default function ContactsPage() {
             canAct={canEdit}
             gateReason="add or import contacts"
             onClick={openAddForm}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            className={cn(
+              'rounded-full text-white font-semibold transition-colors',
+              activeChannel === 'email'
+                ? 'bg-[#2B60DE] hover:bg-[#2B60DE]/90'
+                : 'bg-primary hover:bg-primary/90 text-primary-foreground',
+            )}
           >
             <Plus className="size-4" />
             {t('addContactBtn')}
@@ -502,7 +510,12 @@ export default function ContactsPage() {
               <Filter className="size-4" />
               {t('filterByTags')}
               {selectedTagIds.length > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                <span
+                  className={cn(
+                    'ml-1 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-semibold text-white',
+                    activeChannel === 'email' ? 'bg-[#2B60DE]' : 'bg-primary',
+                  )}
+                >
                   {selectedTagIds.length}
                 </span>
               )}
@@ -675,7 +688,7 @@ export default function ContactsPage() {
               <TableRow className="border-border">
                 <TableCell colSpan={10} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="size-6 animate-spin text-primary" />
+                    <Loader2 className={cn('size-6 animate-spin', activeChannel === 'email' ? 'text-[#2B60DE]' : 'text-primary')} />
                     <p className="text-sm text-muted-foreground">{t('loading')}</p>
                   </div>
                 </TableCell>

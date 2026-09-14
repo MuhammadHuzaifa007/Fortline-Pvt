@@ -200,7 +200,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <span
                 className={cn(
                   "truncate text-[11px] font-semibold leading-none",
-                  activeChannel === "email" ? "text-[#EA4335]" : "text-[#008069]"
+                  activeChannel === "email" ? "text-[#2B60DE]" : "text-[#008069]"
                 )}
               >
                 {activeChannel === "email" ? "Email Sales CRM" : "Executive Sales CRM"}
@@ -247,7 +247,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
                         ? activeChannel === "email"
-                          ? "bg-[#EA4335]/10 text-[#EA4335] font-semibold border-l-2 border-[#EA4335]"
+                          ? "bg-[#2B60DE]/10 text-[#2B60DE] font-semibold border-l-2 border-[#2B60DE]"
                           : "bg-primary/10 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
@@ -270,7 +270,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                         aria-label={t("unreadNotifications", { count: unreadNotifications })}
                         className={cn(
                           "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white",
-                          activeChannel === "email" ? "bg-[#EA4335]" : "bg-primary"
+                          activeChannel === "email" ? "bg-[#2B60DE]" : "bg-primary"
                         )}
                       >
                         {unreadNotifications > 9 ? "9+" : unreadNotifications}
@@ -295,7 +295,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
                       isActive
                         ? activeChannel === "email"
-                          ? "bg-[#EA4335]/10 text-[#EA4335] font-semibold border-l-2 border-[#EA4335]"
+                          ? "bg-[#2B60DE]/10 text-[#2B60DE] font-semibold border-l-2 border-[#2B60DE]"
                           : "bg-primary/10 text-primary font-semibold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}

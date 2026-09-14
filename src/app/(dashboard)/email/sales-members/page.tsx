@@ -86,7 +86,7 @@ export default function SalesMembersEmailPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE] border border-blue-600/20">
               <UsersRound className="w-5 h-5" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -215,7 +215,7 @@ export default function SalesMembersEmailPage() {
                           className={cn(
                             'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase',
                             isConnected
-                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                              ? 'bg-blue-600/15 text-[#2B60DE] dark:text-[#2B60DE] border border-blue-600/30'
                               : 'bg-muted text-muted-foreground border border-border',
                           )}
                         >
@@ -251,7 +251,7 @@ export default function SalesMembersEmailPage() {
                       {/* Overdue */}
                       <td className="p-3.5">
                         {rep.overdueThreads > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-destructive/15 text-destructive border border-destructive/30">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-blue-600/15 text-[#2B60DE] border border-blue-600/30">
                             <AlertTriangle className="w-3 h-3" />
                             {rep.overdueThreads}
                           </span>

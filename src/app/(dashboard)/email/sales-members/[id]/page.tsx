@@ -125,7 +125,7 @@ export default function SalesMemberEmailDetailPage({
               type="button"
               size="sm"
               onClick={() => setComposerOpen(true)}
-              className="gap-1.5 h-9 text-xs font-semibold bg-[#EA4335] hover:bg-[#D93025] text-white rounded-full shadow-sm"
+              className="gap-1.5 h-9 text-xs font-semibold bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white rounded-full shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
               Send As {member.name.split(' ')[0]}
@@ -148,7 +148,7 @@ export default function SalesMemberEmailDetailPage({
 
         <div className="p-4 rounded-xl border border-border bg-card">
           <span className="text-xs font-semibold text-muted-foreground">Overdue SLA</span>
-          <div className={cn('text-2xl font-bold mt-1', overdueCount > 0 ? 'text-destructive' : 'text-foreground')}>
+          <div className={cn('text-2xl font-bold mt-1', overdueCount > 0 ? 'text-[#2B60DE]' : 'text-foreground')}>
             {overdueCount}
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function SalesMemberEmailDetailPage({
           <span className="text-xs font-semibold text-muted-foreground">Mailbox Status</span>
           <div className="text-sm font-bold text-foreground mt-2 capitalize flex items-center gap-1.5">
             {account?.connection_status === 'connected' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-[#2B60DE]" />
             ) : (
               <AlertTriangle className="w-4 h-4 text-amber-500" />
             )}
@@ -216,7 +216,7 @@ export default function SalesMemberEmailDetailPage({
                     </td>
                     <td className="p-3">
                       {thread.is_overdue ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-destructive/15 text-destructive border border-destructive/30">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600/15 text-[#2B60DE] border border-blue-600/30">
                           <AlertTriangle className="w-2.5 h-2.5" /> Overdue
                         </span>
                       ) : (

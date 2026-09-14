@@ -92,7 +92,7 @@ export function EmailAccountCard({ account, onRefreshed }: EmailAccountCardProps
               className={cn(
                 'w-8 h-8 rounded-full flex items-center justify-center shrink-0 border',
                 isConnected
-                  ? 'bg-red-500/10 text-[#EA4335] border-red-500/20'
+                  ? 'bg-blue-600/10 text-[#2B60DE] border-blue-600/20'
                   : 'bg-muted text-muted-foreground border-border',
               )}
             >
@@ -114,9 +114,9 @@ export function EmailAccountCard({ account, onRefreshed }: EmailAccountCardProps
             className={cn(
               'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0',
               isConnected
-                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                ? 'bg-blue-600/15 text-[#2B60DE] dark:text-[#2B60DE] border border-blue-600/30'
                 : isError
-                  ? 'bg-destructive/15 text-destructive border border-destructive/30'
+                  ? 'bg-blue-600/15 text-[#2B60DE] border border-blue-600/30'
                   : 'bg-muted text-muted-foreground border border-border',
             )}
           >
@@ -148,7 +148,7 @@ export function EmailAccountCard({ account, onRefreshed }: EmailAccountCardProps
           </div>
 
           {account.last_error_message && (
-            <p className="text-[10px] text-destructive bg-destructive/10 p-1.5 rounded border border-destructive/20 mt-1 line-clamp-2">
+            <p className="text-[10px] text-[#2B60DE] bg-blue-600/10 p-1.5 rounded border border-blue-600/20 mt-1 line-clamp-2">
               {account.last_error_message}
             </p>
           )}

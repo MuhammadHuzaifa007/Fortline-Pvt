@@ -45,18 +45,18 @@ export function EmailKpiCards({ summary, loading }: EmailKpiCardsProps) {
       value: summary.openThreads.toString(),
       subtitle: `${summary.unreadThreads} unread messages`,
       icon: Mail,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10 border-primary/20',
+      color: 'text-[#2B60DE]',
+      bgColor: 'bg-blue-600/10 border-blue-600/20',
     },
     {
       title: 'Waiting for Rep Reply',
       value: summary.waitingForEmployee.toString(),
       subtitle: `${summary.overdueThreads} overdue SLA breaches`,
       icon: AlertTriangle,
-      color: summary.overdueThreads > 0 ? 'text-destructive' : 'text-amber-500',
+      color: summary.overdueThreads > 0 ? 'text-[#2B60DE]' : 'text-amber-500',
       bgColor:
         summary.overdueThreads > 0
-          ? 'bg-destructive/10 border-destructive/30'
+          ? 'bg-blue-600/10 border-blue-600/30'
           : 'bg-amber-500/10 border-amber-500/20',
     },
     {
@@ -64,8 +64,8 @@ export function EmailKpiCards({ summary, loading }: EmailKpiCardsProps) {
       value: `${summary.avgResponseTimeMinutes}m`,
       subtitle: 'Across all active threads',
       icon: Clock,
-      color: 'text-emerald-500',
-      bgColor: 'bg-emerald-500/10 border-emerald-500/20',
+      color: 'text-[#2B60DE]',
+      bgColor: 'bg-blue-600/10 border-blue-600/20',
     },
     {
       title: 'Sent Today',
@@ -96,11 +96,8 @@ export function EmailKpiCards({ summary, loading }: EmailKpiCardsProps) {
       value: summary.syncErrorsCount === 0 ? 'Optimal' : `${summary.syncErrorsCount} Errors`,
       subtitle: summary.syncErrorsCount === 0 ? 'All mailboxes healthy' : 'Sync attention required',
       icon: summary.syncErrorsCount === 0 ? CheckCircle2 : AlertTriangle,
-      color: summary.syncErrorsCount === 0 ? 'text-emerald-500' : 'text-destructive',
-      bgColor:
-        summary.syncErrorsCount === 0
-          ? 'bg-emerald-500/10 border-emerald-500/20'
-          : 'bg-destructive/10 border-destructive/20',
+      color: 'text-[#2B60DE]',
+      bgColor: 'bg-blue-600/10 border-blue-600/20',
     },
   ]
 
@@ -118,7 +115,7 @@ export function EmailKpiCards({ summary, loading }: EmailKpiCardsProps) {
                 {card.title}
               </span>
               <div
-                className={`p-2 rounded-lg border ${card.bgColor} ${card.color} shrink-0`}
+                className={`p-2 rounded-full border ${card.bgColor} ${card.color} shrink-0`}
               >
                 <Icon className="w-4 h-4" />
               </div>

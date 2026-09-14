@@ -295,7 +295,7 @@ export default function EmailInboxPage({
             className="flex items-center justify-center h-9 w-9 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
             title="Toggle folders sidebar"
           >
-            <Mail className="w-5 h-5 text-[#EA4335]" />
+            <Mail className="w-5 h-5 text-[#2B60DE]" />
           </button>
 
           <div className="flex items-center gap-2">
@@ -303,7 +303,7 @@ export default function EmailInboxPage({
             <span className="text-base font-bold tracking-tight text-foreground hidden sm:inline">
               Gmail M365
             </span>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-[#EA4335] border border-red-500/20">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-600/10 text-[#2B60DE] border border-blue-600/20">
               Fortline
             </span>
           </div>
@@ -321,7 +321,7 @@ export default function EmailInboxPage({
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              className="w-full h-10 pl-10 pr-10 rounded-full border border-border bg-muted/40 hover:bg-muted/60 focus:bg-background focus:border-[#EA4335]/60 focus:ring-2 focus:ring-[#EA4335]/20 text-xs transition-all outline-none"
+              className="w-full h-10 pl-10 pr-10 rounded-full border border-border bg-muted/40 hover:bg-muted/60 focus:bg-background focus:border-[#2B60DE]/60 focus:ring-2 focus:ring-[#2B60DE]/20 text-xs transition-all outline-none"
             />
             <button
               type="button"
@@ -391,7 +391,7 @@ export default function EmailInboxPage({
                 <Button
                   size="sm"
                   onClick={() => setShowFiltersPopover(false)}
-                  className="h-7 text-xs bg-[#EA4335] hover:bg-[#D93025] text-white rounded-full px-3"
+                  className="h-7 text-xs bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white rounded-full px-3"
                 >
                   Apply
                 </Button>
@@ -408,14 +408,14 @@ export default function EmailInboxPage({
             className="flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             title="Refresh mail"
           >
-            <RefreshCw className={cn('w-4 h-4', loadingThreads && 'animate-spin text-[#EA4335]')} />
+            <RefreshCw className={cn('w-4 h-4', loadingThreads && 'animate-spin text-[#2B60DE]')} />
           </button>
 
           <Button
             type="button"
             size="sm"
             onClick={() => setComposerOpen(true)}
-            className="rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white font-semibold text-xs gap-1.5 shadow-sm px-4 h-9 hidden md:flex"
+            className="rounded-full bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white font-semibold text-xs gap-1.5 shadow-sm px-4 h-9 hidden md:flex"
           >
             <Pencil className="w-3.5 h-3.5" />
             Compose
@@ -434,7 +434,7 @@ export default function EmailInboxPage({
             <button
               type="button"
               onClick={() => setComposerOpen(true)}
-              className="flex items-center gap-3 px-5 py-3 rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 mb-2 group cursor-pointer"
+              className="flex items-center gap-3 px-5 py-3 rounded-full bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 mb-2 group cursor-pointer"
             >
               <Pencil className="w-4 h-4 shrink-0 group-hover:rotate-12 transition-transform" />
               <span>Compose</span>
@@ -464,12 +464,12 @@ export default function EmailInboxPage({
                     className={cn(
                       'flex items-center justify-between px-3 py-2 rounded-r-full text-xs font-medium transition-colors w-full cursor-pointer',
                       isActive
-                        ? 'bg-red-500/10 text-[#EA4335] font-bold border-l-4 border-[#EA4335]'
+                        ? 'bg-blue-600/10 text-[#2B60DE] font-bold border-l-4 border-[#2B60DE]'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     )}
                   >
                     <div className="flex items-center gap-3 truncate">
-                      <f.icon className={cn('w-4 h-4 shrink-0', isActive && 'text-[#EA4335]')} />
+                      <f.icon className={cn('w-4 h-4 shrink-0', isActive && 'text-[#2B60DE]')} />
                       <span className="truncate">{f.label}</span>
                     </div>
                     {f.count !== undefined && f.count > 0 && (
@@ -477,9 +477,9 @@ export default function EmailInboxPage({
                         className={cn(
                           'text-[10px] px-2 py-0.5 rounded-full font-bold',
                           f.alert
-                            ? 'bg-[#EA4335] text-white'
+                            ? 'bg-[#2B60DE] text-white'
                             : isActive
-                              ? 'bg-[#EA4335]/20 text-[#EA4335]'
+                              ? 'bg-blue-600/20 text-[#2B60DE]'
                               : 'bg-muted text-muted-foreground',
                         )}
                       >
@@ -512,7 +512,7 @@ export default function EmailInboxPage({
                       className={cn(
                         'flex items-center gap-2 px-3 py-1.5 rounded-md text-[11px] transition-colors text-left truncate cursor-pointer',
                         isRepActive
-                          ? 'bg-[#EA4335]/15 text-[#EA4335] font-bold'
+                          ? 'bg-blue-600/15 text-[#2B60DE] font-bold'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                       )}
                     >
@@ -590,13 +590,13 @@ export default function EmailInboxPage({
                         loadActiveThread(activeThread.id)
                       })
                     }}
-                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-[#EA4335] cursor-pointer"
+                    className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-[#2B60DE] cursor-pointer"
                     title="Toggle high priority"
                   >
                     <Flag
                       className={cn(
                         'w-4 h-4',
-                        activeThread.priority === 'high' && 'text-[#EA4335] fill-[#EA4335]',
+                        activeThread.priority === 'high' && 'text-[#2B60DE] fill-[#2B60DE]',
                       )}
                     />
                   </button>
@@ -616,7 +616,7 @@ export default function EmailInboxPage({
 
                   <div className="flex items-center gap-2">
                     {activeThread.is_overdue && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-[#EA4335] border border-red-500/30">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-600/15 text-[#2B60DE] border border-blue-600/30">
                         <AlertTriangle className="w-3 h-3" /> Overdue SLA
                       </span>
                     )}
@@ -625,7 +625,7 @@ export default function EmailInboxPage({
                         <Clock className="w-3 h-3" /> Waiting for Rep
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-600/10 text-[#2B60DE] border border-blue-600/20">
                         <CheckCircle2 className="w-3 h-3" /> Replied
                       </span>
                     )}
@@ -634,7 +634,7 @@ export default function EmailInboxPage({
 
                 <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-[#EA4335]" />
+                    <User className="w-3.5 h-3.5 text-[#2B60DE]" />
                     Client: <strong className="text-foreground">{activeThread.client_name || activeThread.client_email}</strong>
                   </span>
                   <span>&bull;</span>
@@ -648,7 +648,7 @@ export default function EmailInboxPage({
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {loadingActiveThread ? (
                   <div className="flex items-center justify-center py-16">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#EA4335] border-t-transparent" />
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#2B60DE] border-t-transparent" />
                   </div>
                 ) : (
                   (activeThread.messages || []).map((message) => {
@@ -667,7 +667,7 @@ export default function EmailInboxPage({
                             <div
                               className={cn(
                                 'w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 text-white',
-                                isOutbound ? 'bg-[#EA4335]' : 'bg-emerald-600',
+                                isOutbound ? 'bg-[#2B60DE]' : 'bg-[#2B60DE]/80',
                               )}
                             >
                               {(message.sender_name || message.sender_email || '?').charAt(0).toUpperCase()}
@@ -682,8 +682,8 @@ export default function EmailInboxPage({
                                   className={cn(
                                     'px-2 py-0.5 rounded-full text-[10px] font-semibold',
                                     isOutbound
-                                      ? 'bg-red-500/10 text-[#EA4335]'
-                                      : 'bg-emerald-500/10 text-emerald-500',
+                                      ? 'bg-blue-600/10 text-[#2B60DE]'
+                                      : 'bg-blue-600/10 text-[#2B60DE]',
                                   )}
                                 >
                                   {isOutbound ? 'Outbound' : 'Inbound'}
@@ -750,7 +750,7 @@ export default function EmailInboxPage({
                                 download={att.filename}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-muted/40 hover:bg-muted transition-colors text-xs font-medium"
                               >
-                                <Paperclip className="w-3.5 h-3.5 text-[#EA4335]" />
+                                <Paperclip className="w-3.5 h-3.5 text-[#2B60DE]" />
                                 <span className="truncate max-w-[200px]">{att.filename}</span>
                               </a>
                             ))}
@@ -772,7 +772,7 @@ export default function EmailInboxPage({
                       const lastMsg = activeThread.messages?.[activeThread.messages.length - 1]
                       if (lastMsg) handleOpenReply(lastMsg, false)
                     }}
-                    className="rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white font-semibold text-xs gap-1.5 px-4 h-8 shadow-sm"
+                    className="rounded-full bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white font-semibold text-xs gap-1.5 px-4 h-8 shadow-sm"
                   >
                     <Reply className="w-3.5 h-3.5" />
                     Reply
@@ -827,7 +827,7 @@ export default function EmailInboxPage({
                       className={cn(
                         'w-4 h-4 rounded-sm border flex items-center justify-center transition-colors cursor-pointer',
                         selectedIds.size > 0
-                          ? 'bg-[#EA4335] border-[#EA4335] text-white'
+                          ? 'bg-[#2B60DE] border-[#2B60DE] text-white'
                           : 'border-muted-foreground/40 hover:border-foreground bg-background',
                       )}
                       title="Select all"
@@ -861,12 +861,12 @@ export default function EmailInboxPage({
                       <button
                         type="button"
                         onClick={() => handleBatchStatus('closed')}
-                        className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-[#EA4335] cursor-pointer"
+                        className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-[#2B60DE] cursor-pointer"
                         title="Delete / Move to Trash"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-[11px] font-semibold text-[#EA4335] ml-1">
+                      <span className="text-[11px] font-semibold text-[#2B60DE] ml-1">
                         {selectedIds.size} selected
                       </span>
                     </div>
@@ -919,18 +919,18 @@ export default function EmailInboxPage({
                       className={cn(
                         'flex items-center gap-2 px-6 py-3 text-xs font-semibold border-b-2 transition-all cursor-pointer',
                         isActive
-                          ? 'border-[#EA4335] text-[#EA4335]'
+                          ? 'border-[#2B60DE] text-[#2B60DE]'
                           : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30',
                       )}
                     >
-                      <tab.icon className={cn('w-4 h-4', isActive && 'text-[#EA4335]')} />
+                      <tab.icon className={cn('w-4 h-4', isActive && 'text-[#2B60DE]')} />
                       <span>{tab.label}</span>
                       {tab.count !== undefined && tab.count > 0 && (
                         <span
                           className={cn(
                             'text-[10px] px-1.5 py-0.2 rounded-full font-bold',
                             tab.alert
-                              ? 'bg-[#EA4335] text-white'
+                              ? 'bg-[#2B60DE] text-white'
                               : 'bg-muted text-muted-foreground',
                           )}
                         >
@@ -958,7 +958,7 @@ export default function EmailInboxPage({
                   </div>
                 ) : threads.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-                    <CheckCircle2 className="w-10 h-10 mb-3 text-[#EA4335] opacity-50" />
+                    <CheckCircle2 className="w-10 h-10 mb-3 text-[#2B60DE] opacity-50" />
                     <p className="text-sm font-semibold text-foreground">Your inbox is clean</p>
                     <p className="text-xs mt-1">No conversations found for the selected view.</p>
                   </div>
@@ -974,7 +974,7 @@ export default function EmailInboxPage({
                         onClick={() => setSelectedThreadId(thread.id)}
                         className={cn(
                           'group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/60 transition-colors cursor-pointer text-xs select-none relative',
-                          isSelected && 'bg-red-500/5',
+                          isSelected && 'bg-blue-600/5',
                           hasUnread ? 'bg-background font-semibold' : 'bg-muted/10 text-muted-foreground',
                         )}
                       >
@@ -987,7 +987,7 @@ export default function EmailInboxPage({
                             className={cn(
                               'w-4 h-4 rounded-sm border flex items-center justify-center transition-colors',
                               isSelected
-                                ? 'bg-[#EA4335] border-[#EA4335] text-white'
+                                ? 'bg-[#2B60DE] border-[#2B60DE] text-white'
                                 : 'border-muted-foreground/40 hover:border-foreground bg-background',
                             )}
                           >
@@ -1056,7 +1056,7 @@ export default function EmailInboxPage({
 
                           {/* Status badges */}
                           {thread.is_overdue && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-[#EA4335] border border-red-500/30">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600/15 text-[#2B60DE] border border-blue-600/30">
                               Overdue
                             </span>
                           )}
@@ -1094,7 +1094,7 @@ export default function EmailInboxPage({
                                 e.stopPropagation()
                                 handleBatchStatus('closed')
                               }}
-                              className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-[#EA4335] cursor-pointer"
+                              className="p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-[#2B60DE] cursor-pointer"
                               title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

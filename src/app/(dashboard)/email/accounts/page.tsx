@@ -103,7 +103,7 @@ export default function EmailAccountsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-full bg-red-500/10 text-[#EA4335] border border-red-500/20">
+            <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE] border border-blue-600/20">
               <Server className="w-5 h-5" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -133,7 +133,7 @@ export default function EmailAccountsPage() {
             size="sm"
             onClick={handleSyncAll}
             disabled={syncingAll}
-            className="gap-1.5 h-9 text-xs font-semibold bg-[#EA4335] hover:bg-[#D93025] text-white rounded-full shadow-sm"
+            className="gap-1.5 h-9 text-xs font-semibold bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white rounded-full shadow-sm"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
             Sync All Mailboxes
@@ -154,15 +154,15 @@ export default function EmailAccountsPage() {
         <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
           <div>
             <span className="text-xs text-muted-foreground font-semibold">Connected & Healthy</span>
-            <div className="text-2xl font-bold text-emerald-500 mt-1">{connectedCount}</div>
+            <div className="text-2xl font-bold text-[#2B60DE] mt-1">{connectedCount}</div>
           </div>
-          <CheckCircle2 className="w-6 h-6 text-emerald-500/40" />
+          <CheckCircle2 className="w-6 h-6 text-[#2B60DE]/40" />
         </div>
 
         <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
           <div>
             <span className="text-xs text-muted-foreground font-semibold">Attention Required</span>
-            <div className={`text-2xl font-bold mt-1 ${errorCount > 0 ? 'text-destructive' : 'text-foreground'}`}>
+            <div className={`text-2xl font-bold mt-1 ${errorCount > 0 ? 'text-[#2B60DE]' : 'text-foreground'}`}>
               {errorCount}
             </div>
           </div>

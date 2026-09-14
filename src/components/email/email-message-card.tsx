@@ -61,9 +61,7 @@ export function EmailMessageCard({
           <div
             className={cn(
               'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-              isOutbound
-                ? 'bg-blue-500/15 text-blue-500 border border-blue-500/30'
-                : 'bg-primary/15 text-primary border border-primary/30',
+              'bg-[#2B60DE]/15 text-[#2B60DE] border border-[#2B60DE]/30',
             )}
           >
             {(message.sender_name || message.sender_email || '?').charAt(0).toUpperCase()}
@@ -77,9 +75,7 @@ export function EmailMessageCard({
               <span
                 className={cn(
                   'px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase tracking-wider',
-                  isOutbound
-                    ? 'bg-blue-500/10 text-blue-500'
-                    : 'bg-emerald-500/10 text-emerald-500',
+                  'bg-blue-600/10 text-[#2B60DE]',
                 )}
               >
                 {isOutbound ? 'Outbound' : 'Inbound'}

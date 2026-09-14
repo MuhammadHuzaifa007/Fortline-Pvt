@@ -153,7 +153,7 @@ export function EmailThreadView({
               disabled={updating}
               className="h-8 text-xs rounded-full"
             >
-              <Flag className={cn('w-3.5 h-3.5 mr-1', thread.priority === 'high' && 'text-[#EA4335] fill-[#EA4335]')} />
+              <Flag className={cn('w-3.5 h-3.5 mr-1', thread.priority === 'high' && 'text-[#2B60DE] fill-[#2B60DE]')} />
               {thread.priority === 'high' ? 'High' : 'Normal'}
             </Button>
 
@@ -172,7 +172,7 @@ export function EmailThreadView({
                 </>
               ) : (
                 <>
-                  <Unlock className="w-3.5 h-3.5 mr-1 text-[#EA4335]" />
+                  <Unlock className="w-3.5 h-3.5 mr-1 text-[#2B60DE]" />
                   Reopen
                 </>
               )}
@@ -230,7 +230,7 @@ export function EmailThreadView({
               type="button"
               size="sm"
               onClick={() => handleOpenReply(lastMessage, false)}
-              className="gap-1.5 h-8 text-xs font-semibold rounded-full bg-[#EA4335] hover:bg-[#D93025] text-white shadow-sm px-4"
+              className="gap-1.5 h-8 text-xs font-semibold rounded-full bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white shadow-sm px-4"
             >
               <Reply className="w-3.5 h-3.5" />
               Reply

@@ -90,7 +90,7 @@ export function WhatsAppBadgeLogo({ className = "h-8 w-8" }: { className?: strin
 
 export function EmailBadgeLogo({ className = "h-8 w-8" }: { className?: string }) {
   return (
-    <div className={`relative flex items-center justify-center rounded-full bg-[#EA4335] text-white shadow-md shadow-[#EA4335]/30 transition-transform hover:scale-105 ${className}`}>
+    <div className={`relative flex items-center justify-center rounded-full bg-[#2B60DE] text-white shadow-md shadow-[#2B60DE]/30 transition-transform hover:scale-105 ${className}`}>
       <svg
         viewBox="0 0 24 24"
         fill="none"

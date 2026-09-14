@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useAuth } from "@/hooks/use-auth";
+import { useChannel } from "@/hooks/use-channel";
+import { cn } from "@/lib/utils";
 import { LogOut, Menu, Settings as SettingsIcon, User } from "lucide-react";
 import {
   Avatar,
@@ -27,6 +29,7 @@ interface HeaderProps {
 export function Header({ onOpenSidebar }: HeaderProps) {
   const t = useTranslations("Header");
   const { profile, signOut } = useAuth();
+  const { activeChannel } = useChannel();
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -62,7 +65,14 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                   alt={profile.full_name ?? t("defaultAvatar")}
                 />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+              <AvatarFallback
+                className={cn(
+                  "text-sm font-medium",
+                  activeChannel === "email"
+                    ? "bg-[#2B60DE]/10 text-[#2B60DE]"
+                    : "bg-primary/10 text-primary"
+                )}
+              >
                 {initial}
               </AvatarFallback>
             </Avatar>

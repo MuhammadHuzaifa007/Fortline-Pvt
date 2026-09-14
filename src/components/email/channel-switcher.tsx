@@ -30,7 +30,7 @@ export function ChannelSwitcher({ className }: { className?: string }) {
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-full transition-all duration-150',
             activeChannel === 'email'
-              ? 'bg-background text-[#EA4335] dark:text-[#EA4335] shadow-sm font-bold border border-red-500/30'
+              ? 'bg-background text-[#2B60DE] dark:text-[#2B60DE] shadow-sm font-bold border border-blue-500/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
           )}
         >

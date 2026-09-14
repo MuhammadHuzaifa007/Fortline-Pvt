@@ -79,7 +79,7 @@ export default function EmailDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-full bg-red-500/10 text-[#EA4335] border border-red-500/20">
+            <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE] border border-blue-600/20">
               <Mail className="w-5 h-5" />
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -108,7 +108,7 @@ export default function EmailDashboardPage() {
             type="button"
             size="sm"
             onClick={() => setComposerOpen(true)}
-            className="gap-1.5 h-9 text-xs font-semibold bg-[#EA4335] hover:bg-[#D93025] text-white rounded-full shadow-sm"
+            className="gap-1.5 h-9 text-xs font-semibold bg-[#2B60DE] hover:bg-[#2B60DE]/90 text-white rounded-full shadow-sm"
           >
             <Send className="w-3.5 h-3.5" />
             Compose (CEO Send-As)
@@ -127,13 +127,13 @@ export default function EmailDashboardPage() {
           className="p-5 rounded-xl border border-border bg-card hover:bg-muted/10 transition-colors group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE]">
               <Mail className="w-4 h-4" />
             </div>
             <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
           </div>
           <div className="mt-4">
-            <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+            <h3 className="text-sm font-bold text-foreground group-hover:text-[#2B60DE] transition-colors">
               Unified Email Inbox &rarr;
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
@@ -148,13 +148,13 @@ export default function EmailDashboardPage() {
           className="p-5 rounded-xl border border-border bg-card hover:bg-muted/10 transition-colors group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+            <div className="p-2 rounded-full bg-blue-600/10 text-[#2B60DE]">
               <UsersRound className="w-4 h-4" />
             </div>
             <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
           </div>
           <div className="mt-4">
-            <h3 className="text-sm font-bold text-foreground group-hover:text-emerald-500 transition-colors">
+            <h3 className="text-sm font-bold text-foreground group-hover:text-[#2B60DE] transition-colors">
               Sales Rep Accountability &rarr;
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
@@ -169,7 +169,7 @@ export default function EmailDashboardPage() {
           className="p-5 rounded-xl border border-border bg-card hover:bg-muted/10 transition-colors group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+            <div className="p-2 rounded-full bg-amber-500/10 text-amber-500">
               <AlertTriangle className="w-4 h-4" />
             </div>
             <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -229,7 +229,7 @@ export default function EmailDashboardPage() {
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                         acc.connection_status === 'connected'
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                          ? 'bg-blue-600/15 text-[#2B60DE] dark:text-[#2B60DE]'
                           : 'bg-muted text-muted-foreground'
                       }`}
                     >
