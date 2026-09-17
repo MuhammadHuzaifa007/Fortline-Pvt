@@ -176,6 +176,8 @@ export interface Conversation {
   assigned_agent_id?: string;
   assigned_sales_member_id?: string | null;
   channel_phone_number_id?: string | null;
+  /** FK to fortline_channels — used for channel-type routing (qr_gateway vs cloud_api). */
+  whatsapp_channel_id?: string | null;
   first_response_at?: string | null;
   first_response_time_seconds?: number | null;
   is_unanswered?: boolean;

@@ -128,16 +128,33 @@ function makeSupabaseMock() {
 
 let supabaseMock = makeSupabaseMock()
 
+let channelRow: Record<string, unknown> | null = null
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => supabaseMock),
 }))
 
 vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => ({
-    from: () => {
+    from: (table: string) => {
       const b: Record<string, unknown> = {}
       const chain = () => b
-      for (const m of ['update', 'eq', 'select']) b[m] = vi.fn(chain)
+      for (const m of ['update', 'eq', 'select', 'limit', 'in']) b[m] = vi.fn(chain)
+      const getResult = () => {
+        if (table === 'fortline_channels') return { data: channelRow, error: null }
+        if (table === 'conversations') {
+          return {
+            data: {
+              ...(createdConversation ?? existingConversation),
+              contact: CONTACT,
+            },
+            error: null,
+          }
+        }
+        return { data: null, error: null }
+      }
+      b.single = vi.fn(() => Promise.resolve(getResult()))
+      b.maybeSingle = vi.fn(() => Promise.resolve(getResult()))
       b.then = (resolve: (v: unknown) => unknown) =>
         resolve({ data: null, error: null })
       return b
@@ -151,13 +168,18 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   isLegacyFormat: vi.fn(() => false),
 }))
 
-const { sendTemplateMessage } = vi.hoisted(() => ({
+const { sendTemplateMessage, sendTextMessage, sendEvolutionText } = vi.hoisted(() => ({
   sendTemplateMessage: vi.fn(async () => ({ messageId: 'wamid-1' })),
+  sendTextMessage: vi.fn(async () => ({ messageId: 'wamid-text-1' })),
+  sendEvolutionText: vi.fn(async () => ({ success: true, data: { key: { id: 'evo-1' } } })),
 }))
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   sendTemplateMessage,
-  sendTextMessage: vi.fn(),
+  sendTextMessage,
   sendMediaMessage: vi.fn(),
+}))
+vi.mock('@/lib/evolution/evolution-api', () => ({
+  sendEvolutionText,
 }))
 
 import { POST } from './route'
@@ -312,3 +334,130 @@ describe('POST /api/whatsapp/send — role enforcement', () => {
     expect(sendTemplateMessage).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('POST /api/whatsapp/send — channel-type routing', () => {
+  beforeEach(() => {
+    conversationInserts.length = 0
+    messageInserts.length = 0
+    existingConversation = {
+      id: 'conv-evo',
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      whatsapp_channel_id: 'chan-evo',
+      contact: CONTACT,
+    }
+    createdConversation = null
+    contactRow = CONTACT
+    callerRole = 'admin'
+    channelRow = {
+      id: 'chan-evo',
+      channel_type: 'qr_gateway',
+      gateway_instance_id: 'fortline_bilal',
+      connection_status: 'connected',
+    }
+    supabaseMock = makeSupabaseMock()
+    sendTemplateMessage.mockClear()
+    sendTextMessage.mockClear()
+    sendEvolutionText.mockClear()
+  })
+
+  it('routes text messages on qr_gateway channels through Evolution API instead of Meta', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: 'conv-evo',
+          message_type: 'text',
+          content_text: 'Hello from CEO via Evolution',
+        }),
+      })
+    )
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(json.channel_type).toBe('qr_gateway')
+
+    // Called Evolution
+    expect(sendEvolutionText).toHaveBeenCalledTimes(1)
+    expect(sendEvolutionText).toHaveBeenCalledWith(
+      'fortline_bilal',
+      '15551234567',
+      'Hello from CEO via Evolution'
+    )
+
+    // Did NOT call Meta
+    expect(sendTextMessage).not.toHaveBeenCalled()
+    expect(sendTemplateMessage).not.toHaveBeenCalled()
+
+    // Did NOT insert a message row directly (webhook will persist)
+    expect(messageInserts).toHaveLength(0)
+  })
+
+  it('rejects non-text message types on qr_gateway channels', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: 'conv-evo',
+          message_type: 'template',
+          template_name: 'hello_world',
+        }),
+      })
+    )
+    const json = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(json.error).toMatch(/not yet supported on QR gateway channels/i)
+    expect(sendEvolutionText).not.toHaveBeenCalled()
+    expect(sendTemplateMessage).not.toHaveBeenCalled()
+  })
+
+  it('routes cloud_api channels through Meta Cloud API', async () => {
+    channelRow = {
+      id: 'chan-meta',
+      channel_type: 'cloud_api',
+      gateway_instance_id: null,
+      connection_status: 'connected',
+    }
+    existingConversation = {
+      id: 'conv-meta',
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      whatsapp_channel_id: 'chan-meta',
+      contact: CONTACT,
+    }
+
+    const res = await postContactTemplate({ conversation_id: 'conv-meta' })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(sendTemplateMessage).toHaveBeenCalledTimes(1)
+    expect(sendEvolutionText).not.toHaveBeenCalled()
+    expect(messageInserts).toHaveLength(1)
+  })
+
+  it('defaults to Meta Cloud API when conversation has no whatsapp_channel_id', async () => {
+    existingConversation = {
+      id: 'conv-legacy',
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      whatsapp_channel_id: null,
+      contact: CONTACT,
+    }
+    channelRow = null
+
+    const res = await postContactTemplate({ conversation_id: 'conv-legacy' })
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(sendTemplateMessage).toHaveBeenCalledTimes(1)
+    expect(sendEvolutionText).not.toHaveBeenCalled()
+    expect(messageInserts).toHaveLength(1)
+  })
+})
+

@@ -148,6 +148,111 @@ export async function POST(request: Request) {
       )
     }
 
+    // ----------------------------------------------------------------
+    // Channel-type routing: check if this conversation belongs to a
+    // QR-gateway / Evolution channel. If so, route through Evolution
+    // API instead of Meta Cloud API. This keeps the frontend simple —
+    // all sends go through /api/whatsapp/send regardless of channel.
+    // ----------------------------------------------------------------
+    const { data: convRow } = await supabase
+      .from('conversations')
+      .select('whatsapp_channel_id')
+      .eq('id', conversationId)
+      .eq('account_id', accountId)
+      .single()
+
+    if (convRow?.whatsapp_channel_id) {
+      const adminClient = (await import('@/lib/supabase/admin')).supabaseAdmin()
+      const { data: channel } = await adminClient
+        .from('fortline_channels')
+        .select('id, gateway_instance_id, channel_type, connection_status')
+        .eq('id', convRow.whatsapp_channel_id)
+        .maybeSingle()
+
+      if (channel?.channel_type === 'qr_gateway') {
+        // Only text sends are supported via Evolution for now
+        if (message_type !== 'text') {
+          return NextResponse.json(
+            {
+              error: `${message_type} messages are not yet supported on QR gateway channels. Only text messages can be sent.`,
+            },
+            { status: 400 }
+          )
+        }
+
+        if (!content_text?.trim()) {
+          return NextResponse.json(
+            { error: 'Message text cannot be empty' },
+            { status: 400 }
+          )
+        }
+
+        if (!channel.gateway_instance_id) {
+          return NextResponse.json(
+            {
+              error:
+                'No Evolution instance configured for this channel. Reconnect the sales line in Settings.',
+            },
+            { status: 400 }
+          )
+        }
+
+        if (channel.connection_status === 'disconnected') {
+          return NextResponse.json(
+            {
+              error:
+                'This WhatsApp line is disconnected. Reconnect it in Settings before sending.',
+            },
+            { status: 400 }
+          )
+        }
+
+        // Resolve the contact phone
+        const { data: convWithContact } = await adminClient
+          .from('conversations')
+          .select('contact:contacts(phone)')
+          .eq('id', conversationId)
+          .single()
+
+        const contactPhone =
+          (convWithContact?.contact as any)?.phone?.replace(/\D/g, '') || ''
+        if (!contactPhone) {
+          return NextResponse.json(
+            { error: 'Contact phone number not found' },
+            { status: 400 }
+          )
+        }
+
+        // Send via Evolution — do NOT persist; the webhook handles that
+        const { sendEvolutionText } = await import(
+          '@/lib/evolution/evolution-api'
+        )
+        const evoResult = await sendEvolutionText(
+          channel.gateway_instance_id,
+          contactPhone,
+          content_text.trim()
+        )
+
+        if (!evoResult.success) {
+          return NextResponse.json(
+            { error: evoResult.error || 'Failed to send via Evolution' },
+            { status: 502 }
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          // No message_id or whatsapp_message_id — the webhook will
+          // persist the outbound message when Evolution echoes it.
+          channel_type: 'qr_gateway',
+        })
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // Default path: Meta Cloud API (cloud_api channels or no channel)
+    // ----------------------------------------------------------------
+
     // Delegate to the shared send core (validates, sends to Meta with
     // phone-variant retry, persists, pauses active flow runs). Its
     // `SendMessageError` carries a machine code + HTTP status; the
