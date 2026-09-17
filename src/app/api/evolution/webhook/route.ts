@@ -158,8 +158,8 @@ export async function POST(request: NextRequest) {
   const rawEvent = typeof payload?.event === 'string' ? payload.event : '';
   const normalizedEvent = rawEvent.toLowerCase().replace(/_/g, '.');
 
-  // 1. Process only message events (messages.upsert / MESSAGES_UPSERT)
-  if (normalizedEvent !== 'messages.upsert') {
+  // 1. Process only message events (messages.upsert / send.message and aliases)
+  if (normalizedEvent !== 'messages.upsert' && normalizedEvent !== 'send.message') {
     return NextResponse.json(
       { ok: true, ignored: true, reason: 'unhandled_event' },
       { status: 200 }
@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const fromMe = Boolean(key?.fromMe);
+  const fromMe = key?.fromMe !== undefined ? Boolean(key.fromMe) : (normalizedEvent === 'send.message' ? true : false);
   const pushName = typeof dataRecord?.pushName === 'string' ? dataRecord.pushName.trim() : '';
   const rawMsg = dataRecord?.message as Record<string, unknown> | undefined;
   const { content, mediaType, mediaUrl, mediaMimeType } = extractMessageContent(rawMsg);

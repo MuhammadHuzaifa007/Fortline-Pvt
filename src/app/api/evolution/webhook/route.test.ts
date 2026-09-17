@@ -641,5 +641,125 @@ describe('/api/evolution/webhook', () => {
       expect(msg.media_mime_type).toBe('image/jpeg');
       expect(msg.content).toBe('Product Photo');
     });
+
+    it('persists send.message outbound CEO message', async () => {
+      const payload = {
+        event: 'send.message',
+        instance: 'fortline_bilal',
+        data: {
+          key: {
+            remoteJid: '923001234567@s.whatsapp.net',
+            id: 'OUT_123',
+          },
+          message: {
+            conversation: 'Hello from CEO via Evolution',
+          },
+        },
+      };
+
+      const req = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      }) as any;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      expect(dbState.insertedMessages.length).toBe(1);
+      const msg = dbState.insertedMessages[0];
+      expect(msg.message_id).toBe('OUT_123');
+      expect(msg.sender_type).toBe('user');
+      expect(msg.status).toBe('sent');
+      expect(msg.content).toBe('Hello from CEO via Evolution');
+      expect(msg.metadata.fromMe).toBe(true);
+    });
+
+    it('persists SEND_MESSAGE uppercase alias', async () => {
+      const payload = {
+        event: 'SEND_MESSAGE',
+        instance: 'fortline_bilal',
+        data: {
+          key: {
+            remoteJid: '923001234567@s.whatsapp.net',
+            id: 'OUT_UPPER_123',
+          },
+          message: {
+            conversation: 'Upper case test',
+          },
+        },
+      };
+
+      const req = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      }) as any;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+
+      expect(dbState.insertedMessages.length).toBe(1);
+      const msg = dbState.insertedMessages[0];
+      expect(msg.message_id).toBe('OUT_UPPER_123');
+      expect(msg.sender_type).toBe('user');
+      expect(msg.status).toBe('sent');
+    });
+
+    it('deduplicates correctly when send.message and messages.upsert both arrive', async () => {
+      const sendPayload = {
+        event: 'send.message',
+        instance: 'fortline_bilal',
+        data: {
+          key: {
+            remoteJid: '923001234567@s.whatsapp.net',
+            id: 'DUP_EVENT_123',
+          },
+          message: {
+            conversation: 'Dedupe test',
+          },
+        },
+      };
+
+      const upsertPayload = {
+        event: 'messages.upsert',
+        instance: 'fortline_bilal',
+        data: {
+          key: {
+            remoteJid: '923001234567@s.whatsapp.net',
+            id: 'DUP_EVENT_123',
+            fromMe: true,
+          },
+          message: {
+            conversation: 'Dedupe test',
+          },
+        },
+      };
+
+      const req1 = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(sendPayload),
+      }) as any;
+
+      const res1 = await POST(req1);
+      expect(res1.status).toBe(200);
+      expect(dbState.insertedMessages.length).toBe(1);
+
+      const req2 = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(upsertPayload),
+      }) as any;
+
+      const res2 = await POST(req2);
+      expect(res2.status).toBe(200);
+      
+      const json2 = await res2.json();
+      expect(json2.skipped).toBe('already_saved');
+
+      // Only one message should have been inserted
+      expect(dbState.insertedMessages.length).toBe(1);
+    });
   });
 });
