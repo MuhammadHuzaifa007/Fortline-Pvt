@@ -237,19 +237,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 8. Deduplicate using messages.message_id
-  const { data: existingMsg, error: existingMsgErr } = await admin
+  // 8. Deduplicate using message_id + whatsapp_channel_id
+  let dupQuery = admin
     .from('messages')
     .select('id')
-    .eq('message_id', messageId)
-    .maybeSingle();
+    .eq('message_id', messageId);
+
+  if (channel.id) {
+    dupQuery = dupQuery.eq('whatsapp_channel_id', channel.id);
+  }
+
+  const { data: existingMsg, error: existingMsgErr } = await dupQuery.maybeSingle();
 
   if (existingMsgErr) {
     console.error('[EVOLUTION WEBHOOK] Error checking duplicate message:', existingMsgErr);
   }
 
   if (existingMsg) {
-    console.log('[EVOLUTION WEBHOOK] Message already exists:', messageId);
+    console.log('[EVOLUTION WEBHOOK] Message already exists on channel:', messageId, channel.id);
     return NextResponse.json(
       { ok: true, skipped: 'already_saved' },
       { status: 200 }
@@ -329,16 +334,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 5. Find conversation by account_id and contact_id
+  // 5. Find conversation by account_id, contact_id, assigned_sales_member_id, and whatsapp_channel_id
   let conversationId: string | null = null;
   let isNewConversation = false;
 
-  const { data: existingConv, error: convFindErr } = await admin
+  let convQuery = admin
     .from('conversations')
     .select('id, unread_count, assigned_sales_member_id, first_response_at, first_response_time_seconds, created_at')
     .eq('account_id', channel.account_id)
-    .eq('contact_id', contactId)
-    .maybeSingle();
+    .eq('contact_id', contactId);
+
+  if (channel.sales_member_id) {
+    convQuery = convQuery.eq('assigned_sales_member_id', channel.sales_member_id);
+  }
+  if (channel.id) {
+    convQuery = convQuery.eq('whatsapp_channel_id', channel.id);
+  }
+
+  const { data: existingConv, error: convFindErr } = await convQuery.maybeSingle();
 
   if (convFindErr) {
     console.error('[EVOLUTION WEBHOOK] Error finding conversation:', convFindErr);
@@ -372,13 +385,21 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createConvErr || !newConv) {
-      // In case of concurrent conversation insert, fallback lookup
-      const { data: raceConv } = await admin
+      // In case of concurrent conversation insert, fallback lookup per sales line
+      let raceConvQuery = admin
         .from('conversations')
         .select('id, unread_count, assigned_sales_member_id, first_response_at, first_response_time_seconds, created_at')
         .eq('account_id', channel.account_id)
-        .eq('contact_id', contactId)
-        .maybeSingle();
+        .eq('contact_id', contactId);
+
+      if (channel.sales_member_id) {
+        raceConvQuery = raceConvQuery.eq('assigned_sales_member_id', channel.sales_member_id);
+      }
+      if (channel.id) {
+        raceConvQuery = raceConvQuery.eq('whatsapp_channel_id', channel.id);
+      }
+
+      const { data: raceConv } = await raceConvQuery.maybeSingle();
 
       if (raceConv) {
         conversationId = raceConv.id;

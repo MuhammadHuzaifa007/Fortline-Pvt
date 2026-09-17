@@ -109,6 +109,15 @@ describe('/api/evolution/webhook', () => {
     connection_status: 'connected',
   };
 
+  const HAMZA_CHANNEL = {
+    id: '77777777-74f9-4b43-a042-5e3b4be2062b',
+    account_id: '2bbc38e3-24ad-433b-95c1-c5af114815a3',
+    sales_member_id: '88888888-4975-470a-ac83-1ad19c8a3291',
+    phone_number_id: 'phone_id_fortline_009',
+    gateway_instance_id: 'fortline_hamza',
+    connection_status: 'connected',
+  };
+
   beforeEach(() => {
     vi.restoreAllMocks();
     dbState = {
@@ -250,10 +259,11 @@ describe('/api/evolution/webhook', () => {
       expect(dbState.insertedMessages.length).toBe(0);
     });
 
-    it('deduplicates existing message by message_id', async () => {
+    it('deduplicates existing message by message_id and whatsapp_channel_id', async () => {
       dbState.messages.push({
         id: 'msg-existing-1',
         message_id: 'DUPLICATE_ID_123',
+        whatsapp_channel_id: BILAL_CHANNEL.id,
       });
 
       const req = new NextRequest('http://localhost:3000/api/evolution/webhook', {
@@ -278,6 +288,123 @@ describe('/api/evolution/webhook', () => {
       const data = await res.json();
       expect(data).toEqual({ ok: true, skipped: 'already_saved' });
       expect(dbState.insertedMessages.length).toBe(0);
+    });
+
+    it('identical message_id on two different channels does not incorrectly suppress the second channel', async () => {
+      // Seed Hamza channel
+      dbState.channels.push({ ...HAMZA_CHANNEL });
+      dbState.salesMembers.push({
+        id: HAMZA_CHANNEL.sales_member_id,
+        name: 'Hamza',
+      });
+
+      // Existing message on Bilal channel
+      dbState.messages.push({
+        id: 'msg-bilal-1',
+        message_id: 'SHARED_MSG_ID_999',
+        whatsapp_channel_id: BILAL_CHANNEL.id,
+      });
+
+      // Incoming payload with identical message_id on Hamza channel
+      const req = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          event: 'messages.upsert',
+          instance: 'fortline_hamza',
+          data: {
+            key: {
+              remoteJid: '923001234567@s.whatsapp.net',
+              fromMe: false,
+              id: 'SHARED_MSG_ID_999',
+            },
+            message: { conversation: 'Message for Hamza' },
+          },
+        }),
+      }) as any;
+
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data).toEqual({ ok: true });
+      expect(dbState.insertedMessages.length).toBe(1);
+      expect(dbState.insertedMessages[0].whatsapp_channel_id).toBe(HAMZA_CHANNEL.id);
+      expect(dbState.insertedMessages[0].message_id).toBe('SHARED_MSG_ID_999');
+    });
+
+    it('same contact messaging two different sales members creates and uses separate conversations', async () => {
+      dbState.channels.push({ ...HAMZA_CHANNEL });
+      dbState.salesMembers.push({
+        id: HAMZA_CHANNEL.sales_member_id,
+        name: 'Hamza',
+      });
+
+      const contactPhone = '923005555555';
+
+      // 1. Contact messages Bilal
+      const reqBilal = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          event: 'messages.upsert',
+          instance: 'fortline_bilal',
+          data: {
+            key: {
+              remoteJid: `${contactPhone}@s.whatsapp.net`,
+              fromMe: false,
+              id: 'MSG_BILAL_1',
+            },
+            pushName: 'Corporate Buyer',
+            message: { conversation: 'Hi Bilal, need pricing' },
+          },
+        }),
+      }) as any;
+
+      const resBilal = await POST(reqBilal);
+      expect(resBilal.status).toBe(200);
+      expect((await resBilal.json()).ok).toBe(true);
+
+      expect(dbState.insertedContacts.length).toBe(1);
+      const sharedContactId = dbState.insertedContacts[0].id;
+      expect(dbState.insertedConversations.length).toBe(1);
+      const bilalConvId = dbState.insertedConversations[0].id;
+      expect(dbState.insertedConversations[0].assigned_sales_member_id).toBe(BILAL_CHANNEL.sales_member_id);
+      expect(dbState.insertedConversations[0].whatsapp_channel_id).toBe(BILAL_CHANNEL.id);
+
+      // 2. Same contact messages Hamza
+      const reqHamza = new NextRequest('http://localhost:3000/api/evolution/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          event: 'messages.upsert',
+          instance: 'fortline_hamza',
+          data: {
+            key: {
+              remoteJid: `${contactPhone}@s.whatsapp.net`,
+              fromMe: false,
+              id: 'MSG_HAMZA_1',
+            },
+            pushName: 'Corporate Buyer',
+            message: { conversation: 'Hi Hamza, checking service availability' },
+          },
+        }),
+      }) as any;
+
+      const resHamza = await POST(reqHamza);
+      expect(resHamza.status).toBe(200);
+      expect((await resHamza.json()).ok).toBe(true);
+
+      // Contact was reused, not duplicated
+      expect(dbState.insertedContacts.length).toBe(1);
+      expect(dbState.contacts[0].id).toBe(sharedContactId);
+
+      // A separate conversation was created for Hamza
+      expect(dbState.insertedConversations.length).toBe(2);
+      const hamzaConv = dbState.insertedConversations[1];
+      expect(hamzaConv.id).not.toBe(bilalConvId);
+      expect(hamzaConv.contact_id).toBe(sharedContactId);
+      expect(hamzaConv.assigned_sales_member_id).toBe(HAMZA_CHANNEL.sales_member_id);
+      expect(hamzaConv.whatsapp_channel_id).toBe(HAMZA_CHANNEL.id);
     });
 
     it('processes incoming client message with new contact and new conversation', async () => {
@@ -388,6 +515,7 @@ describe('/api/evolution/webhook', () => {
         account_id: BILAL_CHANNEL.account_id,
         contact_id: contactId,
         assigned_sales_member_id: BILAL_CHANNEL.sales_member_id,
+        whatsapp_channel_id: BILAL_CHANNEL.id,
         unread_count: 2,
         is_unanswered: true,
         created_at: createdTime,
