@@ -1,27 +1,51 @@
 import { NextResponse } from 'next/server';
 import { requireCeo, toErrorResponse } from '@/lib/auth/fortline-auth';
 import { syncGatewayChatsForSalesMember } from '@/lib/gateway/sync';
-import { getGatewayConfig } from '@/lib/gateway/config';
+
+function getEvolutionConfig() {
+  const gatewayUrl = process.env.EVOLUTION_API_URL
+    ?.trim()
+    .replace(/\/+$/, '');
+
+  const apiKey = process.env.EVOLUTION_API_KEY?.trim();
+
+  if (!gatewayUrl || !apiKey) {
+    throw new Error('Evolution API configuration is missing');
+  }
+
+  return {
+    gatewayUrl,
+    apiKey,
+  };
+}
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireCeo();
+    await requireCeo();
+
     const body = await request.json();
-    const salesMemberId = body.salesMemberId;
+    const salesMemberId = body?.salesMemberId;
 
     if (!salesMemberId) {
-      return NextResponse.json({ error: 'salesMemberId is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'salesMemberId is required' },
+        { status: 400 }
+      );
     }
 
-    const config = await getGatewayConfig(ctx.supabase, ctx.accountId);
+    const { gatewayUrl, apiKey } = getEvolutionConfig();
+
     const result = await syncGatewayChatsForSalesMember(
       salesMemberId,
-      config.gateway_url,
-      config.api_key
+      gatewayUrl,
+      apiKey
     );
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return NextResponse.json(
+        { error: result.error },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(result);
@@ -32,23 +56,31 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
-    const ctx = await requireCeo();
+    await requireCeo();
+
     const { searchParams } = new URL(request.url);
     const salesMemberId = searchParams.get('salesMemberId');
 
     if (!salesMemberId) {
-      return NextResponse.json({ error: 'salesMemberId query param required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'salesMemberId query param required' },
+        { status: 400 }
+      );
     }
 
-    const config = await getGatewayConfig(ctx.supabase, ctx.accountId);
+    const { gatewayUrl, apiKey } = getEvolutionConfig();
+
     const result = await syncGatewayChatsForSalesMember(
       salesMemberId,
-      config.gateway_url,
-      config.api_key
+      gatewayUrl,
+      apiKey
     );
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return NextResponse.json(
+        { error: result.error },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(result);
