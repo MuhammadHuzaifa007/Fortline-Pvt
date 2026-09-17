@@ -261,7 +261,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const fromMe = key?.fromMe !== undefined ? Boolean(key.fromMe) : (normalizedEvent === 'send.message' ? true : false);
+  const explicitFromMe =
+    typeof key?.fromMe === 'boolean' ? key.fromMe : undefined;
+  const fromMe =
+    normalizedEvent === 'send.message' ? true : explicitFromMe === true;
   const pushName = typeof dataRecord?.pushName === 'string' ? dataRecord.pushName.trim() : '';
   const rawMsg = dataRecord?.message as Record<string, unknown> | undefined;
   const { content, mediaType, mediaUrl, mediaMimeType } = extractMessageContent(rawMsg);
