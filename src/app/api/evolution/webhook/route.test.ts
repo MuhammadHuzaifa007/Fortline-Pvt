@@ -464,7 +464,7 @@ describe('/api/evolution/webhook', () => {
       expect(dbState.insertedMessages.length).toBe(1);
       const msg = dbState.insertedMessages[0];
       expect(msg.message_id).toBe('MSG_IN_100');
-      expect(msg.sender_type).toBe('customer'); // Canonical inbound
+      expect(msg.sender_type).toBe('contact'); // Inbound contact
       expect(msg.status).toBe('delivered');
       expect(msg.content).toBe('Need quotation for Cisco switches');
       expect(msg.media_type).toBe('text');
@@ -562,7 +562,7 @@ describe('/api/evolution/webhook', () => {
       expect(dbState.insertedMessages.length).toBe(1);
       const msg = dbState.insertedMessages[0];
       expect(msg.message_id).toBe('MSG_OUT_200');
-      expect(msg.sender_type).toBe('agent'); // Canonical outbound
+      expect(msg.sender_type).toBe('user'); // Outbound user
       expect(msg.status).toBe('sent');
       expect(msg.content).toBe('Hello Tariq, here is the Cisco switch quotation.');
 

@@ -415,10 +415,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 7. Canonical sender_type and status
-  // Inbound: 'customer', 'delivered'
-  // Outbound: 'agent', 'sent'
-  const senderType = fromMe ? 'agent' : 'customer';
+  // 7. sender_type and status
+  // Inbound (fromMe === false): 'contact', 'delivered'
+  // Outbound (fromMe === true): 'user', 'sent'
+  const senderType = fromMe ? 'user' : 'contact';
   const messageStatus = fromMe ? 'sent' : 'delivered';
 
   // 9. Insert into existing messages table
