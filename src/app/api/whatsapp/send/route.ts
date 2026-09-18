@@ -207,18 +207,52 @@ export async function POST(request: Request) {
           )
         }
 
-        // Resolve the contact phone
+        // Resolve the Evolution recipient.
+        //
+        // Prefer a real phone number whenever we have one. For historical
+        // Baileys chats that only have a WhatsApp LID (`...@lid`), fall back
+        // to the stored whatsapp_jid / metadata remoteJid so the CEO can still
+        // reply to that exact Evolution thread.
         const { data: convWithContact } = await adminClient
           .from('conversations')
-          .select('contact:contacts(phone)')
+          .select('contact:contacts(phone, whatsapp_jid, metadata)')
           .eq('id', conversationId)
           .single()
 
+        const contact = (convWithContact?.contact as any) || null
+
         const contactPhone =
-          (convWithContact?.contact as any)?.phone?.replace(/\D/g, '') || ''
-        if (!contactPhone) {
+          typeof contact?.phone === 'string'
+            ? contact.phone.replace(/\D/g, '')
+            : ''
+
+        const storedWhatsappJid =
+          typeof contact?.whatsapp_jid === 'string'
+            ? contact.whatsapp_jid.trim()
+            : ''
+
+        const metadataRemoteJid =
+          typeof contact?.metadata?.remoteJid === 'string'
+            ? contact.metadata.remoteJid.trim()
+            : ''
+
+        const lidRecipient =
+          storedWhatsappJid.endsWith('@lid')
+            ? storedWhatsappJid
+            : metadataRemoteJid.endsWith('@lid')
+              ? metadataRemoteJid
+              : ''
+
+        // Normal phone routing remains the first choice. LID is only used
+        // when the historical chat has no resolvable phone number.
+        const evolutionRecipient = contactPhone || lidRecipient
+
+        if (!evolutionRecipient) {
           return NextResponse.json(
-            { error: 'Contact phone number not found' },
+            {
+              error:
+                'This WhatsApp contact has no resolvable phone number or Evolution LID yet. Sync the chat again and retry.',
+            },
             { status: 400 }
           )
         }
@@ -229,7 +263,7 @@ export async function POST(request: Request) {
         )
         const evoResult = await sendEvolutionText(
           channel.gateway_instance_id,
-          contactPhone,
+          evolutionRecipient,
           content_text.trim()
         )
 

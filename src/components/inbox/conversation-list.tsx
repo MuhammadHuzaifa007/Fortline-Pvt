@@ -38,8 +38,17 @@ type ChatTab = "direct" | "groups";
  *  `chat_type` field is explicitly set to `'group'`. */
 function isGroupConversation(conv: Conversation): boolean {
   if (conv.chat_type === "group") return true;
-  const phone = conv.contact?.phone ?? "";
-  return phone.includes("@g.us") || phone.startsWith("120363") || phone.startsWith("+120363");
+
+  const contact = conv.contact as any;
+  const phone = contact?.phone ?? "";
+  const whatsappJid = contact?.whatsapp_jid ?? "";
+  const metadataRemoteJid = contact?.metadata?.remoteJid ?? "";
+
+  return (
+    phone.includes("@g.us") ||
+    whatsappJid.endsWith("@g.us") ||
+    metadataRemoteJid.endsWith("@g.us")
+  );
 }
 
 interface ConversationListProps {
@@ -64,7 +73,7 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
-  
+
   const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = useMemo(() => [
     { label: t("filterAll"), value: "all" },
     { label: "⚡ Unanswered", value: "unanswered" },
@@ -80,6 +89,9 @@ export function ConversationList({
   const [loading, setLoading] = useState(true);
   const [chatTab, setChatTab] = useState<ChatTab>("direct");
   const [showAllTime, setShowAllTime] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
+  const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -101,6 +113,8 @@ export function ConversationList({
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
+
+    setLoading(true);
 
     (async () => {
       let query = supabase
@@ -129,13 +143,13 @@ export function ConversationList({
           .from("conversations")
           .select(CONVERSATION_BASE_SELECT)
           .order("last_message_at", { ascending: false });
-          
+
         if (!showAllTime) {
           const fiveDaysAgo = new Date();
           fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
           fallbackQuery = fallbackQuery.gte("last_message_at", fiveDaysAgo.toISOString()).limit(200);
         }
-        
+
         fetchResult = await fallbackQuery;
       }
 
@@ -195,7 +209,7 @@ export function ConversationList({
     return () => {
       cancelled = true;
     };
-  }, [resyncToken, showAllTime]);
+  }, [resyncToken, showAllTime, historyRefreshToken]);
 
   // Tag definitions for the filter picker — loaded once so labels/colours
   // stay stable regardless of which conversations happen to be loaded.
@@ -378,6 +392,60 @@ export function ConversationList({
     [onSelect]
   );
 
+  const handleLoadOlderChats = useCallback(async () => {
+    if (loadingOlder) return;
+
+    setLoadingOlder(true);
+    setOlderLoadError(null);
+
+    try {
+      // If the CEO is viewing one specific sales rep, first ask the backend
+      // to reconcile that rep's Evolution history into Supabase. This makes
+      // "Load older chats" actually pull historical WhatsApp threads instead
+      // of only revealing rows that were already present in the database.
+      if (
+        selectedSalesMemberId &&
+        selectedSalesMemberId !== "all" &&
+        selectedSalesMemberId !== "unassigned"
+      ) {
+        const syncResponse = await fetch("/api/gateway/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ salesMemberId: selectedSalesMemberId }),
+        });
+
+        if (!syncResponse.ok) {
+          let message = "Could not sync older WhatsApp chats.";
+          try {
+            const payload = await syncResponse.json();
+            if (payload?.error) message = payload.error;
+          } catch {
+            // Keep the clean fallback message.
+          }
+          throw new Error(message);
+        }
+      }
+
+      // Remove the five-day window and re-fetch the database after the sync.
+      setShowAllTime(true);
+      setHistoryRefreshToken((value) => value + 1);
+    } catch (error) {
+      console.error("Failed to load older chats:", error);
+      setOlderLoadError(
+        error instanceof Error
+          ? error.message
+          : "Could not load older chats. Please try again."
+      );
+
+      // Even if Evolution sync fails, still reveal any older rows that already
+      // exist in Supabase.
+      setShowAllTime(true);
+      setHistoryRefreshToken((value) => value + 1);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [loadingOlder, selectedSalesMemberId]);
+
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
 
   return (
@@ -399,8 +467,8 @@ export function ConversationList({
         <div className="flex flex-wrap items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
-                {activeFilter?.label ?? t("filterAll")}
-                <ChevronDown className="h-3 w-3" />
+              {activeFilter?.label ?? t("filterAll")}
+              <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
@@ -550,49 +618,49 @@ export function ConversationList({
         )}
       </div>
 
-        {/* ── Chats / Groups tab bar ── */}
-        <div className="flex border-t border-border">
-          <button
-            onClick={() => setChatTab("direct")}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
-              chatTab === "direct"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <MessageCircle className="h-3.5 w-3.5" />
-            {t("tabChats")}
-          </button>
-          <button
-            onClick={() => setChatTab("groups")}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
-              chatTab === "groups"
-                ? "border-b-2 border-primary text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Users className="h-3.5 w-3.5" />
-            {t("tabGroups")}
-            {groupCount > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-bold">
-                {groupCount}
-              </span>
-            )}
-          </button>
-        </div>
+      {/* ── Chats / Groups tab bar ── */}
+      <div className="flex border-t border-border">
+        <button
+          onClick={() => setChatTab("direct")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
+            chatTab === "direct"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+          {t("tabChats")}
+        </button>
+        <button
+          onClick={() => setChatTab("groups")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
+            chatTab === "groups"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Users className="h-3.5 w-3.5" />
+          {t("tabGroups")}
+          {groupCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-bold">
+              {groupCount}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* ── Selection Action Bar ── */}
       {selectedIds.size > 0 && (
         <div className="flex items-center justify-between bg-primary/10 px-3 py-2 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={handleSelectAll}
               className="flex h-4 w-4 items-center justify-center rounded border border-primary text-primary bg-primary transition-colors hover:bg-primary/90"
             >
               {selectedIds.size === filtered.length && filtered.length > 0 ? (
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary-foreground"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary-foreground"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
               ) : (
                 <span className="h-2 w-2 bg-primary-foreground" />
               )}
@@ -615,7 +683,7 @@ export function ConversationList({
       {/* ── Optional "Select All" above list when no selection ── */}
       {selectedIds.size === 0 && filtered.length > 0 && (
         <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 shrink-0 bg-muted/20">
-          <button 
+          <button
             onClick={handleSelectAll}
             className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -664,16 +732,31 @@ export function ConversationList({
                 />
               );
             })}
-            
+
             {/* Load Older Chats */}
-            {!showAllTime && filtered.length >= 0 && (
-              <div className="p-4 flex justify-center border-t border-border mt-2">
+            {!showAllTime && filtered.length > 0 && (
+              <div className="p-4 flex flex-col items-center gap-2 border-t border-border mt-2">
                 <button
-                  onClick={() => setShowAllTime(true)}
-                  className="text-xs font-medium text-primary hover:underline"
+                  onClick={handleLoadOlderChats}
+                  disabled={loadingOlder}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Load older chats
+                  {loadingOlder && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {loadingOlder ? "Loading older chats..." : "Load older chats"}
                 </button>
+
+                {olderLoadError && (
+                  <p className="max-w-xs text-center text-[11px] leading-relaxed text-red-500">
+                    {olderLoadError}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {showAllTime && loading && (
+              <div className="p-3 flex items-center justify-center gap-2 border-t border-border text-[11px] text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Refreshing chat history...
               </div>
             )}
           </div>
@@ -716,8 +799,8 @@ function ConversationItem({
 
   const timeAgo = conversation.last_message_at
     ? formatDistanceToNow(new Date(conversation.last_message_at), {
-        addSuffix: false,
-      })
+      addSuffix: false,
+    })
     : "";
 
   return (
@@ -733,15 +816,15 @@ function ConversationItem({
     >
       {/* Selection Checkbox */}
       {(isSelected || isHovered) && (
-        <div 
-          className="absolute left-2 top-3 z-10" 
+        <div
+          className="absolute left-2 top-3 z-10"
           onClick={(e) => { e.stopPropagation(); onToggleSelect(conversation.id); }}
         >
           <div className={cn(
             "h-4 w-4 rounded-sm border flex items-center justify-center transition-colors",
             isSelected ? "bg-primary border-primary text-primary-foreground" : "border-primary/50 bg-background hover:border-primary"
           )}>
-            {isSelected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            {isSelected && <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
           </div>
         </div>
       )}
@@ -835,9 +918,9 @@ function ConversationItem({
           </div>
         </div>
       </div>
-      
+
       {/* Action Menu */}
-      <div 
+      <div
         className={cn(
           "absolute right-2 top-2 z-10 transition-opacity",
           isHovered ? "opacity-100" : "opacity-0"
@@ -849,7 +932,7 @@ function ConversationItem({
             <MoreVertical className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={() => onDelete(conversation.id)}
               className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
             >

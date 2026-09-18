@@ -10,6 +10,7 @@ interface SyncResult {
   syncedMessages?: number;
   memberName?: string;
   skippedUnresolvedLidChats?: number;
+  unresolvedLidChats?: number;
   error?: string;
 }
 
@@ -156,43 +157,96 @@ function normalizePhone(value: string): string {
 }
 
 /**
- * Resolve an actual phone-number JID from an Evolution chat.
+ * Resolve a stable WhatsApp identity from an Evolution chat.
  *
- * Modern WhatsApp / Baileys can return:
- *   123456789@lid
+ * Evolution/Baileys may expose a direct chat as either:
+ *   923xxxxxxxxx@s.whatsapp.net
+ * or:
+ *   xxxxxxxxx@lid
  *
- * while providing the real number under:
- *   remoteJidAlt = 923xxxxxxxxx@s.whatsapp.net
+ * If a LID chat provides remoteJidAlt, use that phone JID as the canonical
+ * identity so the LID version and phone-JID version of the same person merge
+ * into one CRM contact/conversation.
  *
- * Never use a group participant number as the direct-chat number.
+ * If no phone mapping is available, keep the @lid value itself as the
+ * canonical WhatsApp identity. That lets the CRM preserve the historical chat
+ * instead of dropping it.
  */
-function resolvePhoneJid(chat: any): string | null {
-  const primaryJid = chat?.remoteJid;
+function resolveChatIdentity(chat: any): {
+  remoteJid: string;
+  altJid: string | null;
+  canonicalJid: string;
+  phone: string | null;
+  unresolvedLid: boolean;
+} | null {
+  const remoteJid = typeof chat?.remoteJid === 'string'
+    ? chat.remoteJid.trim()
+    : '';
 
-  if (
-    typeof primaryJid === 'string' &&
-    primaryJid.endsWith('@s.whatsapp.net')
-  ) {
-    return primaryJid;
+  if (!remoteJid) {
+    return null;
   }
 
   if (
-    typeof primaryJid === 'string' &&
-    primaryJid.endsWith('@lid')
+    remoteJid === 'status@broadcast' ||
+    remoteJid.endsWith('@g.us') ||
+    remoteJid.endsWith('@broadcast') ||
+    remoteJid.endsWith('@newsletter')
   ) {
-    const candidates = [
-      chat?.remoteJidAlt,
-      chat?.lastMessage?.key?.remoteJidAlt,
-    ];
+    return null;
+  }
 
-    for (const candidate of candidates) {
-      if (
-        typeof candidate === 'string' &&
-        candidate.endsWith('@s.whatsapp.net')
-      ) {
-        return candidate;
-      }
+  const altCandidates = [
+    chat?.remoteJidAlt,
+    chat?.lastMessage?.key?.remoteJidAlt,
+  ];
+
+  const altJid = altCandidates.find(
+    (candidate) =>
+      typeof candidate === 'string' &&
+      candidate.endsWith('@s.whatsapp.net')
+  ) || null;
+
+  if (remoteJid.endsWith('@s.whatsapp.net')) {
+    const phone = normalizePhone(remoteJid.replace(/@.*$/, ''));
+
+    if (!phone || phone === '0' || phone.length < 7) {
+      return null;
     }
+
+    return {
+      remoteJid,
+      altJid,
+      canonicalJid: `${phone}@s.whatsapp.net`,
+      phone,
+      unresolvedLid: false,
+    };
+  }
+
+  if (remoteJid.endsWith('@lid')) {
+    if (altJid) {
+      const phone = normalizePhone(altJid.replace(/@.*$/, ''));
+
+      if (!phone || phone === '0' || phone.length < 7) {
+        return null;
+      }
+
+      return {
+        remoteJid,
+        altJid,
+        canonicalJid: `${phone}@s.whatsapp.net`,
+        phone,
+        unresolvedLid: false,
+      };
+    }
+
+    return {
+      remoteJid,
+      altJid: null,
+      canonicalJid: remoteJid,
+      phone: null,
+      unresolvedLid: true,
+    };
   }
 
   return null;
@@ -366,41 +420,27 @@ export async function syncGatewayChatsForSalesMember(
   // ---------------------------------------------------------
 
   let skippedUnresolvedLidChats = 0;
+  let unresolvedLidChats = 0;
 
   const directChats = chats
     .map((chat) => {
-      const remoteJid = chat?.remoteJid;
+      const identity = resolveChatIdentity(chat);
 
-      if (
-        !remoteJid ||
-        typeof remoteJid !== 'string'
-      ) {
+      if (!identity) {
         return null;
       }
 
-      // Explicitly ignore non-direct chat types.
-      if (
-        remoteJid === 'status@broadcast' ||
-        remoteJid.endsWith('@g.us') ||
-        remoteJid.endsWith('@broadcast') ||
-        remoteJid.endsWith('@newsletter')
-      ) {
-        return null;
-      }
-
-      const resolvedPhoneJid = resolvePhoneJid(chat);
-
-      if (!resolvedPhoneJid) {
-        if (remoteJid.endsWith('@lid')) {
-          skippedUnresolvedLidChats++;
-        }
-
-        return null;
+      if (identity.unresolvedLid) {
+        unresolvedLidChats++;
       }
 
       return {
         ...chat,
-        resolvedPhoneJid,
+        resolvedRemoteJid: identity.remoteJid,
+        resolvedAltJid: identity.altJid,
+        canonicalWhatsAppJid: identity.canonicalJid,
+        resolvedPhone: identity.phone,
+        unresolvedLid: identity.unresolvedLid,
       };
     })
     .filter(Boolean) as any[];
@@ -432,22 +472,22 @@ export async function syncGatewayChatsForSalesMember(
 
   for (const chat of sortedChats) {
     try {
-      const rawNumber =
-        chat.resolvedPhoneJid.replace(
-          /@.*$/,
-          ''
-        );
+      const phone: string | null = chat.resolvedPhone || null;
+      const whatsappJid: string = chat.canonicalWhatsAppJid;
 
-      const phone = normalizePhone(rawNumber);
+      if (!whatsappJid) {
+        continue;
+      }
 
-      if (!phone) {
+      if (phone && (phone === '0' || phone.length < 7)) {
         continue;
       }
 
       const discoveredName =
         chat.pushName ||
         chat.lastMessage?.pushName ||
-        phone;
+        phone ||
+        'WhatsApp Contact';
 
       // -----------------------------------------------------
       // A. Resolve / create contact
@@ -455,13 +495,16 @@ export async function syncGatewayChatsForSalesMember(
 
       let contactId: string | null = null;
 
-      // Support both historical +923... records and canonical
-      // 923... records so Sync does not create duplicates.
-      const { data: existingContacts } =
-        await admin
+      // Prefer phone matching when a real number is known so a @lid chat
+      // with remoteJidAlt and the equivalent phone-JID chat merge into one
+      // contact. For unresolved @lid chats, match by whatsapp_jid instead.
+      let existingContacts: any[] | null = null;
+
+      if (phone) {
+        const { data } = await admin
           .from('contacts')
           .select(
-            'id, name, phone, assigned_sales_member_id'
+            'id, name, phone, whatsapp_jid, assigned_sales_member_id'
           )
           .eq('account_id', accountId)
           .in('phone', [
@@ -469,6 +512,22 @@ export async function syncGatewayChatsForSalesMember(
             `+${phone}`,
           ])
           .limit(1);
+
+        existingContacts = data;
+      }
+
+      if (!existingContacts?.length) {
+        const { data } = await admin
+          .from('contacts')
+          .select(
+            'id, name, phone, whatsapp_jid, assigned_sales_member_id'
+          )
+          .eq('account_id', accountId)
+          .eq('whatsapp_jid', whatsappJid)
+          .limit(1);
+
+        existingContacts = data;
+      }
 
       const existingContact =
         existingContacts?.[0] || null;
@@ -481,11 +540,18 @@ export async function syncGatewayChatsForSalesMember(
           any
         > = {};
 
-        // Normalize old +923... format.
+        // Normalize old +923... format when a real phone is known.
         if (
+          phone &&
           existingContact.phone !== phone
         ) {
           contactUpdates.phone = phone;
+        }
+
+        // Store a stable WhatsApp identity. For resolved LID chats this is the
+        // canonical phone JID; for unresolved LID chats it remains the @lid.
+        if (existingContact.whatsapp_jid !== whatsappJid) {
+          contactUpdates.whatsapp_jid = whatsappJid;
         }
 
         // Assign only when currently unassigned.
@@ -506,8 +572,9 @@ export async function syncGatewayChatsForSalesMember(
           discoveredName !== phone &&
           (
             !existingContact.name ||
-            existingContact.name === phone ||
-            existingContact.name === `+${phone}`
+            (phone && existingContact.name === phone) ||
+            (phone && existingContact.name === `+${phone}`) ||
+            existingContact.name === existingContact.whatsapp_jid
           )
         ) {
           contactUpdates.name = discoveredName;
@@ -534,6 +601,7 @@ export async function syncGatewayChatsForSalesMember(
           .insert({
             account_id: accountId,
             phone,
+            whatsapp_jid: whatsappJid,
             name: discoveredName,
             assigned_sales_member_id:
               salesMemberId,
@@ -547,8 +615,11 @@ export async function syncGatewayChatsForSalesMember(
               evolutionInstance:
                 instanceName,
               remoteJid: chat.remoteJid,
+              remoteJidAlt: chat.resolvedAltJid || null,
+              canonicalWhatsAppJid: whatsappJid,
               resolvedPhoneJid:
-                chat.resolvedPhoneJid,
+                phone ? `${phone}@s.whatsapp.net` : null,
+              unresolvedLid: Boolean(chat.unresolvedLid),
               pushName:
                 chat.pushName ||
                 chat.lastMessage?.pushName ||
@@ -564,7 +635,7 @@ export async function syncGatewayChatsForSalesMember(
           !newContact
         ) {
           console.warn(
-            `[gateway-sync] Failed to insert contact ${phone}:`,
+            `[gateway-sync] Failed to insert contact ${phone || whatsappJid}:`,
             contactInsertError?.message
           );
 
@@ -641,7 +712,7 @@ export async function syncGatewayChatsForSalesMember(
 
       if (existingConversationError) {
         console.warn(
-          `[gateway-sync] Conversation lookup failed for ${phone}:`,
+          `[gateway-sync] Conversation lookup failed for ${phone || whatsappJid}:`,
           existingConversationError.message
         );
 
@@ -744,7 +815,7 @@ export async function syncGatewayChatsForSalesMember(
           !newConversation
         ) {
           console.warn(
-            `[gateway-sync] Failed to insert conversation for ${phone}:`,
+            `[gateway-sync] Failed to insert conversation for ${phone || whatsappJid}:`,
             conversationInsertError?.message
           );
 
@@ -963,8 +1034,17 @@ export async function syncGatewayChatsForSalesMember(
                 remoteJid:
                   chat.remoteJid,
 
+                remoteJidAlt:
+                  chat.resolvedAltJid || null,
+
+                canonicalWhatsAppJid:
+                  whatsappJid,
+
                 resolvedPhoneJid:
-                  chat.resolvedPhoneJid,
+                  phone ? `${phone}@s.whatsapp.net` : null,
+
+                unresolvedLid:
+                  Boolean(chat.unresolvedLid),
 
                 syncedFromEvolution:
                   true,
@@ -1045,5 +1125,6 @@ export async function syncGatewayChatsForSalesMember(
     memberName:
       member.name,
     skippedUnresolvedLidChats,
+    unresolvedLidChats,
   };
 }
