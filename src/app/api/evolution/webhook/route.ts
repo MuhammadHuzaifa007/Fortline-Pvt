@@ -704,13 +704,12 @@ export async function POST(request: NextRequest) {
         channel.sales_member_id;
     }
 
+    // Mirror the real WhatsApp pushName into CRM whenever Evolution provides it.
+    // cleanPushName() already removes self labels like "Você" and numeric placeholders.
     if (
       !identity.isGroup &&
       pushName &&
-      isPlaceholderContactName(
-        contact.name,
-        identity
-      )
+      contact.name !== pushName
     ) {
       contactUpdates.name =
         pushName;

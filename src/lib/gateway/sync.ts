@@ -498,6 +498,77 @@ export async function syncGatewayChatsForSalesMember(
   }
 
   // ---------------------------------------------------------
+  // 3B. Fetch Evolution contacts for reliable WhatsApp display names
+  // ---------------------------------------------------------
+
+  let evolutionContacts: any[] = [];
+
+  try {
+    const contactsResponse = await fetch(
+      `${cleanGatewayUrl}/chat/findContacts/${encodeURIComponent(instanceName)}`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          where: {},
+          take: 500,
+        }),
+        cache: 'no-store',
+      }
+    );
+
+    if (contactsResponse.ok) {
+      const contactsData = await contactsResponse.json();
+
+      evolutionContacts = Array.isArray(contactsData)
+        ? contactsData
+        : Array.isArray(contactsData?.contacts)
+          ? contactsData.contacts
+          : [];
+    } else {
+      const responseText = await contactsResponse.text();
+
+      console.warn(
+        '[gateway-sync] Evolution findContacts failed:',
+        contactsResponse.status,
+        responseText.slice(0, 200)
+      );
+    }
+  } catch (contactsError: any) {
+    console.warn(
+      '[gateway-sync] Failed fetching Evolution contacts:',
+      contactsError?.message || contactsError
+    );
+  }
+
+  const whatsappNameByJid = new Map<string, string>();
+
+  for (const evolutionContact of evolutionContacts) {
+    const contactJid =
+      typeof evolutionContact?.remoteJid === 'string'
+        ? evolutionContact.remoteJid.trim()
+        : '';
+
+    const contactPushName =
+      typeof evolutionContact?.pushName === 'string'
+        ? evolutionContact.pushName.trim()
+        : '';
+
+    if (
+      !contactJid ||
+      !contactPushName ||
+      isReservedSelfName(contactPushName)
+    ) {
+      continue;
+    }
+
+    whatsappNameByJid.set(contactJid, contactPushName);
+  }
+
+  // ---------------------------------------------------------
   // 4. Keep supported WhatsApp chats.
   //
   // Supports direct phone JIDs, modern @lid chats, and @g.us groups.
@@ -573,6 +644,26 @@ export async function syncGatewayChatsForSalesMember(
       const lastMessageFromMeForName =
         isMessageFromMe(chat.lastMessage || {});
 
+      const directoryNameRaw = isGroup
+        ? ''
+        : (
+          whatsappNameByJid.get(whatsappJid) ||
+          whatsappNameByJid.get(chat.remoteJid) ||
+          (chat.resolvedAltJid
+            ? whatsappNameByJid.get(chat.resolvedAltJid)
+            : '') ||
+          ''
+        );
+
+      const directoryName = isGroup
+        ? ''
+        : cleanDiscoveredName(
+          directoryNameRaw,
+          phone,
+          chat.remoteJid,
+          false
+        );
+
       const primaryName = isGroup
         ? (typeof chat.pushName === 'string' ? chat.pushName.trim() : '')
         : cleanDiscoveredName(
@@ -592,6 +683,7 @@ export async function syncGatewayChatsForSalesMember(
         );
 
       const discoveredName =
+        directoryName ||
         primaryName ||
         secondaryName ||
         (isGroup
@@ -674,16 +766,12 @@ export async function syncGatewayChatsForSalesMember(
             salesMemberId;
         }
 
-        // Upgrade a placeholder phone-number name
-        // when Evolution knows the person's pushName.
+        // Keep CRM contact name aligned with the WhatsApp name Evolution exposes.
+        // Reserved self labels such as "Você" are already filtered above.
         if (
           discoveredName &&
-          isPlaceholderStoredName(
-            existingContact.name,
-            phone,
-            whatsappJid,
-            chat.remoteJid
-          ) &&
+          discoveredName !== 'WhatsApp Contact' &&
+          discoveredName !== 'WhatsApp Group' &&
           existingContact.name !== discoveredName
         ) {
           contactUpdates.name = discoveredName;
@@ -1022,6 +1110,36 @@ export async function syncGatewayChatsForSalesMember(
         ) {
           messageList =
             rawMessages.records;
+        }
+
+        // A chat's latest message can be from the monitored sales line and have
+        // pushName "Você". Look through actual inbound history for the customer's
+        // WhatsApp pushName and use it when Evolution exposes one.
+        if (!isGroup) {
+          const historicalWhatsAppName = messageList
+            .filter((message) => !isMessageFromMe(message))
+            .map((message) =>
+              cleanDiscoveredName(
+                message?.pushName,
+                phone,
+                chat.remoteJid,
+                false
+              )
+            )
+            .find(Boolean);
+
+          if (
+            historicalWhatsAppName &&
+            historicalWhatsAppName !== discoveredName
+          ) {
+            await admin
+              .from('contacts')
+              .update({
+                name: historicalWhatsAppName,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', contactId);
+          }
         }
 
         for (const message of messageList) {
