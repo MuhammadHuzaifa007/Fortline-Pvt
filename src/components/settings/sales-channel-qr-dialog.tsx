@@ -40,6 +40,13 @@ interface SalesChannelQrDialogProps {
 const COUNTDOWN_SECONDS = 60;
 const MAX_POLL_DURATION_MS = 120000; // 2 minutes timeout
 
+function normalizePairingCode(value: string | null | undefined): string {
+  return (value || '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 8)
+}
+
 export type LinkUiState =
   | 'preparing'
   | 'waiting_for_scan'
@@ -254,7 +261,11 @@ export function SalesChannelQrDialog({
         return
       }
 
-      const code = typeof data.pairingCode === 'string' ? data.pairingCode : null
+      const code =
+        typeof data.pairingCode === 'string'
+          ? normalizePairingCode(data.pairingCode)
+          : null
+
       if (code) {
         setPairingCode(code)
         setUiState('waiting_for_pairing')
@@ -330,7 +341,7 @@ export function SalesChannelQrDialog({
 
   const handleCopyCode = () => {
     if (!pairingCode) return
-    const formatted = pairingCode.replace(/[^a-zA-Z0-9]/g, '')
+    const formatted = normalizePairingCode(pairingCode)
     navigator.clipboard.writeText(formatted)
     setCopied(true)
     toast.success('Pairing code copied to clipboard!')
@@ -340,7 +351,7 @@ export function SalesChannelQrDialog({
   if (!member) return null
 
   // Format 8-char code for display e.g. "AB12 - CD34"
-  const rawCode = (pairingCode || '').replace(/[^a-zA-Z0-9]/g, '')
+  const rawCode = normalizePairingCode(pairingCode)
   const displayCodePart1 = rawCode.slice(0, 4)
   const displayCodePart2 = rawCode.slice(4, 8)
   const countdownProgress = Math.max(0, Math.min(100, (secondsRemaining / COUNTDOWN_SECONDS) * 100))
@@ -381,11 +392,10 @@ export function SalesChannelQrDialog({
                   setActiveTab('qrcode')
                   if (!qrcode) requestQrCode()
                 }}
-                className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all ${
-                  activeTab === 'qrcode'
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all ${activeTab === 'qrcode'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 <QrCode className="size-3.5 text-primary" />
                 <span>Scan QR Code</span>
@@ -395,11 +405,10 @@ export function SalesChannelQrDialog({
                 onClick={() => {
                   setActiveTab('phone_code')
                 }}
-                className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all ${
-                  activeTab === 'phone_code'
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all ${activeTab === 'phone_code'
                     ? 'bg-background text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 <KeyRound className="size-3.5 text-emerald-500" />
                 <span>Pair with Phone Number</span>
