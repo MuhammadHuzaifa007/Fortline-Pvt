@@ -157,6 +157,15 @@ export async function POST(request: Request) {
           account_id: accountId,
           sales_member_id: salesMemberId,
           channel_type: 'qr_gateway',
+
+          // `phone_number_id` is NOT NULL in the existing Fortline schema.
+          // Meta channels store Meta's phone-number ID here; for Evolution
+          // QR-gateway channels we use the rep's normalized WhatsApp number
+          // as the stable channel identifier.
+          phone_number_id:
+            (salesMember.phone_number || '').replace(/\D/g, '') ||
+            `qr_${salesMemberId}`,
+
           display_phone_number: salesMember.phone_number || null,
           connection_status: 'disconnected',
         })
