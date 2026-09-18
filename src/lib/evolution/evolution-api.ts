@@ -157,6 +157,7 @@ export async function sendEvolutionText(
  */
 export async function createEvolutionInstance(
   instanceName: string,
+  phone?: string,
 ): Promise<{
   success: boolean;
   data?: Record<string, unknown>;
@@ -197,6 +198,9 @@ export async function createEvolutionInstance(
         instanceName: instanceName.trim(),
         integration: 'WHATSAPP-BAILEYS',
         qrcode: true,
+        ...(phone
+          ? { number: phone.replace(/\D/g, '') }
+          : {}),
       }),
       signal: controller.signal,
     });
@@ -236,6 +240,84 @@ export async function createEvolutionInstance(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Network error creating Evolution instance',
+    };
+  }
+}
+
+/**
+ * Delete an Evolution instance.
+ *
+ * Used by phone-pairing mode to reset an instance that is already stuck in
+ * `connecting`. Evolution v2.3.7 ignores a newly supplied number while the
+ * instance is already connecting, so pairing needs a fresh instance created
+ * with the number from the beginning.
+ */
+export async function deleteEvolutionInstance(
+  instanceName: string,
+): Promise<{
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: string;
+  statusCode?: number;
+}> {
+  const apiUrl = process.env.EVOLUTION_API_URL?.trim().replace(/\/+$/, '');
+  const apiKey = process.env.EVOLUTION_API_KEY?.trim();
+
+  if (!apiUrl || !apiKey) {
+    return {
+      success: false,
+      error: 'Evolution API credentials are not configured.',
+    };
+  }
+
+  if (!instanceName || !instanceName.trim()) {
+    return {
+      success: false,
+      error: 'Instance name cannot be empty.',
+    };
+  }
+
+  const url =
+    `${apiUrl}/instance/delete/${encodeURIComponent(instanceName.trim())}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        apikey: apiKey,
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+
+      return {
+        success: false,
+        error: `Evolution API delete returned ${response.status}: ${errorText.slice(0, 200)}`,
+        statusCode: response.status,
+      };
+    }
+
+    const data = await response.json().catch(() => ({}));
+
+    return {
+      success: true,
+      data: data as Record<string, unknown>,
+      statusCode: response.status,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Network error deleting Evolution instance',
     };
   }
 }
@@ -362,8 +444,8 @@ export async function getEvolutionConnectionState(
       typeof rawInstance?.state === 'string'
         ? rawInstance.state
         : typeof data.state === 'string'
-        ? data.state
-        : undefined;
+          ? data.state
+          : undefined;
 
     return {
       success: true,

@@ -3,7 +3,9 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   createEvolutionInstance,
+  deleteEvolutionInstance,
   getEvolutionConnection,
+  getEvolutionConnectionState,
   setEvolutionWebhook,
 } from '@/lib/evolution/evolution-api';
 
@@ -18,25 +20,52 @@ function normalizePairingCode(value: unknown): string | null {
   return normalized.length === 8 ? normalized : null;
 }
 
+function extractPairingCode(
+  createData: Record<string, unknown>,
+  connectData: Record<string, unknown>,
+): string | null {
+  const createQr =
+    createData.qrcode && typeof createData.qrcode === 'object'
+      ? (createData.qrcode as Record<string, unknown>)
+      : null;
+
+  const connectQr =
+    connectData.qrcode && typeof connectData.qrcode === 'object'
+      ? (connectData.qrcode as Record<string, unknown>)
+      : null;
+
+  const candidates = [
+    connectData.pairingCode,
+    connectQr?.pairingCode,
+    createData.pairingCode,
+    createQr?.pairingCode,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizePairingCode(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 /**
  * POST /api/evolution/link/start
  *
  * Starts a WhatsApp link session for a sales member's QR gateway channel.
- * Creates/reuses an Evolution instance, registers the webhook, and fetches
- * QR data or pairing code.
+ * Pairing mode deliberately recreates any non-open Evolution instance and
+ * creates the fresh instance WITH the phone number from the beginning.
  *
- * Body:
- * {
- *   "sales_member_id": "...",
- *   "mode": "qr" | "pairing",
- *   "phone"?: "923xxxxxxxxx"
- * }
+ * This is required by Evolution API v2.3.7 because once an instance is already
+ * in `connecting`, /instance/connect returns the existing QR object and ignores
+ * a newly supplied number.
  */
 export async function POST(request: Request) {
   try {
     const { accountId } = await requireRole('agent');
 
     let body: Record<string, unknown>;
+
     try {
       body = (await request.json()) as Record<string, unknown>;
     } catch {
@@ -124,7 +153,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Only operate on qr_gateway channels
     if (channel.channel_type !== 'qr_gateway') {
       return NextResponse.json(
         { error: 'Channel is not configured for QR gateway' },
@@ -132,50 +160,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Stable instance name
+    // 3. Stable instance name
     const instanceName =
       channel.gateway_instance_id &&
         channel.gateway_instance_id.trim()
         ? channel.gateway_instance_id.trim()
         : `fortline_rep_${channel.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-    // 5. Ensure instance exists in Evolution
-    const createRes =
-      await createEvolutionInstance(instanceName);
-
-    if (
-      !createRes.success &&
-      !createRes.alreadyExists
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            createRes.error ||
-            'Failed to create Evolution instance',
-        },
-        { status: 502 },
-      );
-    }
-
-    // 6. Automatically register webhook
-    const webhookRes =
-      await setEvolutionWebhook(instanceName);
-
-    if (!webhookRes.success) {
-      console.warn(
-        '[EVOLUTION LINK START] Non-fatal: Webhook registration returned an error:',
-        instanceName,
-        webhookRes.error,
-      );
-    }
-
-    // 7. Request connection (QR or Pairing Code)
+    // 4. Normalize phone BEFORE creating the Evolution instance.
     let phoneParam: string | undefined;
 
     if (mode === 'pairing') {
       const rawPhone =
-        typeof body.phone === 'string' &&
-          body.phone.trim()
+        typeof body.phone === 'string' && body.phone.trim()
           ? body.phone.trim()
           : salesMember.phone_number || '';
 
@@ -192,10 +189,7 @@ export async function POST(request: Request) {
         normalizedPhone = `92${normalizedPhone.slice(1)}`;
       }
 
-      if (
-        !normalizedPhone ||
-        normalizedPhone.length < 8
-      ) {
+      if (!normalizedPhone || normalizedPhone.length < 8) {
         return NextResponse.json(
           {
             error:
@@ -208,6 +202,116 @@ export async function POST(request: Request) {
       phoneParam = normalizedPhone;
     }
 
+    // 5. Pairing mode needs a fresh non-connected instance.
+    //
+    // Evolution v2.3.7 returns the current QR unchanged when the state is
+    // already `connecting`; it does NOT apply a new number at that point.
+    if (mode === 'pairing') {
+      const currentState =
+        await getEvolutionConnectionState(instanceName);
+
+      if (
+        currentState.success &&
+        currentState.state === 'open'
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'This WhatsApp line is already connected. Disconnect it before generating a new pairing code.',
+          },
+          { status: 409 },
+        );
+      }
+
+      if (currentState.success) {
+        const deleteResult =
+          await deleteEvolutionInstance(instanceName);
+
+        if (
+          !deleteResult.success &&
+          deleteResult.statusCode !== 404
+        ) {
+          console.error(
+            '[EVOLUTION LINK START] Failed to reset existing Evolution instance:',
+            deleteResult.error,
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                deleteResult.error ||
+                'Failed to reset the existing Evolution pairing session',
+            },
+            { status: 502 },
+          );
+        }
+      }
+    }
+
+    // 6. Create instance.
+    // IMPORTANT: pairing mode passes `number` in the CREATE request so Baileys
+    // has phoneNumber set before the first QR event is generated.
+    let createRes =
+      await createEvolutionInstance(
+        instanceName,
+        mode === 'pairing' ? phoneParam : undefined,
+      );
+
+    // If an old instance still existed but connectionState could not read it,
+    // reset it once and retry pairing creation.
+    if (
+      mode === 'pairing' &&
+      createRes.alreadyExists
+    ) {
+      const deleteResult =
+        await deleteEvolutionInstance(instanceName);
+
+      if (!deleteResult.success) {
+        return NextResponse.json(
+          {
+            error:
+              deleteResult.error ||
+              'Failed to reset the old Evolution instance',
+          },
+          { status: 502 },
+        );
+      }
+
+      createRes =
+        await createEvolutionInstance(
+          instanceName,
+          phoneParam,
+        );
+    }
+
+    if (
+      !createRes.success &&
+      !createRes.alreadyExists
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            createRes.error ||
+            'Failed to create Evolution instance',
+        },
+        { status: 502 },
+      );
+    }
+
+    // 7. Register CRM webhook
+    const webhookRes =
+      await setEvolutionWebhook(instanceName);
+
+    if (!webhookRes.success) {
+      console.warn(
+        '[EVOLUTION LINK START] Non-fatal webhook registration error:',
+        instanceName,
+        webhookRes.error,
+      );
+    }
+
+    // 8. Read current connection data.
+    // For a newly-created pairing instance, this should now include pairingCode.
     const connectRes =
       await getEvolutionConnection(
         instanceName,
@@ -225,63 +329,72 @@ export async function POST(request: Request) {
       );
     }
 
-    const connectData =
-      (connectRes.data || {}) as Record<
-        string,
-        unknown
-      >;
+    const createData =
+      (createRes.data || {}) as Record<string, unknown>;
 
-    // 8. Update fortline_channels with connecting state
-    let updatePayload: Record<
-      string,
-      unknown
-    > = {
-      gateway_instance_id:
-        instanceName,
-      connection_status:
-        'connecting',
+    const connectData =
+      (connectRes.data || {}) as Record<string, unknown>;
+
+    const pairingCode =
+      mode === 'pairing'
+        ? extractPairingCode(createData, connectData)
+        : null;
+
+    if (
+      mode === 'pairing' &&
+      !pairingCode
+    ) {
+      console.error(
+        '[EVOLUTION LINK START] Evolution did not generate a pairing code',
+        {
+          instanceName,
+          phoneProvided: Boolean(phoneParam),
+          createKeys: Object.keys(createData),
+          connectKeys: Object.keys(connectData),
+        },
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            'Evolution did not generate a phone pairing code. Please generate a fresh code again.',
+        },
+        { status: 502 },
+      );
+    }
+
+    // 9. Update fortline_channels with connecting state
+    let updatePayload: Record<string, unknown> = {
+      gateway_instance_id: instanceName,
+      connection_status: 'connecting',
       pairing_state:
-        mode === 'qr'
-          ? 'qrcode'
-          : 'pairing',
-      webhook_status:
-        'active',
-      updated_at:
-        new Date().toISOString(),
+        mode === 'qr' ? 'qrcode' : 'pairing',
+      webhook_status: 'active',
+      updated_at: new Date().toISOString(),
     };
 
-    const { error: updateErr } =
-      await admin
-        .from('fortline_channels')
-        .update(updatePayload)
-        .eq('id', channel.id);
+    const { error: updateErr } = await admin
+      .from('fortline_channels')
+      .update(updatePayload)
+      .eq('id', channel.id);
 
-    // If database check constraint restricts connection_status or pairing_state,
-    // fallback gracefully to valid database enum values.
     if (
       updateErr &&
       updateErr.code === '23514'
     ) {
       updatePayload = {
-        gateway_instance_id:
-          instanceName,
-        connection_status:
-          'disconnected',
+        gateway_instance_id: instanceName,
+        connection_status: 'disconnected',
         pairing_state:
-          mode === 'qr'
-            ? 'qrcode'
-            : 'connecting',
-        webhook_status:
-          'active',
-        updated_at:
-          new Date().toISOString(),
+          mode === 'qr' ? 'qrcode' : 'connecting',
+        webhook_status: 'active',
+        updated_at: new Date().toISOString(),
       };
 
-      const fallback =
-        await admin
-          .from('fortline_channels')
-          .update(updatePayload)
-          .eq('id', channel.id);
+      const fallback = await admin
+        .from('fortline_channels')
+        .update(updatePayload)
+        .eq('id', channel.id);
 
       if (fallback.error) {
         console.error(
@@ -296,52 +409,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 9. Extract and normalize pairing code.
-    // Baileys generates Crockford pairing codes in uppercase.
-    // Normalize here too so frontend and WhatsApp mobile always see the same format.
-    let pairingCode: string | null = null;
-
-    if (mode === 'pairing') {
-      const rawPairingCode =
-        typeof connectData.pairingCode ===
-          'string'
-          ? connectData.pairingCode
-          : typeof connectData.code ===
-            'string'
-            ? connectData.code
-            : null;
-
-      pairingCode =
-        normalizePairingCode(
-          rawPairingCode,
-        );
-
-      if (!pairingCode) {
-        console.error(
-          '[EVOLUTION LINK START] Invalid pairing code returned by Evolution:',
-          rawPairingCode,
-        );
-
-        return NextResponse.json(
-          {
-            error:
-              'Evolution returned an invalid pairing code. Generate a new code and try again.',
-          },
-          { status: 502 },
-        );
-      }
-    }
-
-    // 10. Return only safe data to frontend
+    // 10. Return safe connection data only
     return NextResponse.json(
       {
         ok: true,
         instance: instanceName,
         mode,
-        qr:
-          mode === 'qr'
-            ? connectData
-            : null,
+        qr: mode === 'qr' ? connectData : null,
         pairingCode,
       },
       { status: 200 },
