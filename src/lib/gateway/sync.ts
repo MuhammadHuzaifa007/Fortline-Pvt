@@ -552,20 +552,27 @@ export async function syncGatewayChatsForSalesMember(
         ? evolutionContact.remoteJid.trim()
         : '';
 
-    const contactPushName =
-      typeof evolutionContact?.pushName === 'string'
-        ? evolutionContact.pushName.trim()
-        : '';
+    const contactNameCandidates = [
+      evolutionContact?.pushName,
+      evolutionContact?.name,
+      evolutionContact?.verifiedName,
+      evolutionContact?.notify,
+    ];
 
-    if (
-      !contactJid ||
-      !contactPushName ||
-      isReservedSelfName(contactPushName)
-    ) {
+    const contactPushName =
+      contactNameCandidates
+        .find(
+          (value) =>
+            typeof value === 'string' &&
+            value.trim() &&
+            !isReservedSelfName(value)
+        );
+
+    if (!contactJid || typeof contactPushName !== 'string') {
       continue;
     }
 
-    whatsappNameByJid.set(contactJid, contactPushName);
+    whatsappNameByJid.set(contactJid, contactPushName.trim());
   }
 
   // ---------------------------------------------------------
@@ -664,13 +671,38 @@ export async function syncGatewayChatsForSalesMember(
           false
         );
 
-      const primaryName = isGroup
-        ? (typeof chat.pushName === 'string' ? chat.pushName.trim() : '')
-        : cleanDiscoveredName(
+      const chatNameCandidates = isGroup
+        ? [
           chat.pushName,
-          phone,
-          chat.remoteJid,
-          false
+          chat.name,
+          chat.subject,
+        ]
+        : [
+          chat.pushName,
+          chat.name,
+          chat.verifiedName,
+          chat.notify,
+        ];
+
+      const primaryName = isGroup
+        ? (
+          chatNameCandidates.find(
+            (value) =>
+              typeof value === 'string' &&
+              value.trim()
+          ) as string | undefined
+        )?.trim() || ''
+        : (
+          chatNameCandidates
+            .map((value) =>
+              cleanDiscoveredName(
+                value,
+                phone,
+                chat.remoteJid,
+                false
+              )
+            )
+            .find(Boolean) || ''
         );
 
       const secondaryName = isGroup
@@ -682,13 +714,18 @@ export async function syncGatewayChatsForSalesMember(
           lastMessageFromMeForName
         );
 
+      const jidLocalPart =
+        typeof chat.remoteJid === 'string'
+          ? chat.remoteJid.split('@')[0]
+          : '';
+
       const discoveredName =
         directoryName ||
         primaryName ||
         secondaryName ||
         (isGroup
           ? 'WhatsApp Group'
-          : phone || 'WhatsApp Contact');
+          : phone || jidLocalPart || 'Unknown WhatsApp');
 
       // -----------------------------------------------------
       // A. Resolve / create contact
@@ -770,7 +807,6 @@ export async function syncGatewayChatsForSalesMember(
         // Reserved self labels such as "Você" are already filtered above.
         if (
           discoveredName &&
-          discoveredName !== 'WhatsApp Contact' &&
           discoveredName !== 'WhatsApp Group' &&
           existingContact.name !== discoveredName
         ) {

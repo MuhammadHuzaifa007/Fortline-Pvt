@@ -706,13 +706,24 @@ export async function POST(request: NextRequest) {
 
     // Mirror the real WhatsApp pushName into CRM whenever Evolution provides it.
     // cleanPushName() already removes self labels like "Você" and numeric placeholders.
-    if (
-      !identity.isGroup &&
-      pushName &&
-      contact.name !== pushName
-    ) {
-      contactUpdates.name =
-        pushName;
+    if (!identity.isGroup) {
+      const fallbackIdentityName =
+        identity.phone ||
+        identity.remoteJid.split('@')[0] ||
+        'Unknown WhatsApp';
+
+      const desiredName =
+        pushName ||
+        (
+          !contact.name ||
+            contact.name === 'WhatsApp Contact'
+            ? fallbackIdentityName
+            : contact.name
+        );
+
+      if (desiredName && contact.name !== desiredName) {
+        contactUpdates.name = desiredName;
+      }
     }
 
     await admin
@@ -720,12 +731,16 @@ export async function POST(request: NextRequest) {
       .update(contactUpdates)
       .eq('id', contact.id);
   } else {
+    const jidLocalPart =
+      identity.remoteJid.split('@')[0] || '';
+
     const newContactName =
       identity.isGroup
         ? 'WhatsApp Group'
         : pushName ||
         identity.phone ||
-        'WhatsApp Contact';
+        jidLocalPart ||
+        'Unknown WhatsApp';
 
     const {
       data: newContact,
