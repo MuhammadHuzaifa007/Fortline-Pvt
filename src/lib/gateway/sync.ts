@@ -178,6 +178,7 @@ function resolveChatIdentity(chat: any): {
   canonicalJid: string;
   phone: string | null;
   unresolvedLid: boolean;
+  chatType: 'direct' | 'group';
 } | null {
   const remoteJid = typeof chat?.remoteJid === 'string'
     ? chat.remoteJid.trim()
@@ -189,11 +190,21 @@ function resolveChatIdentity(chat: any): {
 
   if (
     remoteJid === 'status@broadcast' ||
-    remoteJid.endsWith('@g.us') ||
     remoteJid.endsWith('@broadcast') ||
     remoteJid.endsWith('@newsletter')
   ) {
     return null;
+  }
+
+  if (remoteJid.endsWith('@g.us')) {
+    return {
+      remoteJid,
+      altJid: null,
+      canonicalJid: remoteJid,
+      phone: null,
+      unresolvedLid: false,
+      chatType: 'group',
+    };
   }
 
   const altCandidates = [
@@ -220,6 +231,7 @@ function resolveChatIdentity(chat: any): {
       canonicalJid: `${phone}@s.whatsapp.net`,
       phone,
       unresolvedLid: false,
+      chatType: 'direct',
     };
   }
 
@@ -237,6 +249,7 @@ function resolveChatIdentity(chat: any): {
         canonicalJid: `${phone}@s.whatsapp.net`,
         phone,
         unresolvedLid: false,
+        chatType: 'direct',
       };
     }
 
@@ -246,6 +259,7 @@ function resolveChatIdentity(chat: any): {
       canonicalJid: remoteJid,
       phone: null,
       unresolvedLid: true,
+      chatType: 'direct',
     };
   }
 
@@ -257,6 +271,83 @@ function resolveChatIdentity(chat: any): {
  */
 function isMessageFromMe(message: any): boolean {
   return message?.key?.fromMe === true;
+}
+
+
+function isReservedSelfName(value: string): boolean {
+  const normalized = value
+    .trim()
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  return ['voce', 'you', 'me', 'myself'].includes(normalized);
+}
+
+function cleanDiscoveredName(
+  value: unknown,
+  phone: string | null,
+  remoteJid: string,
+  fromMe: boolean
+): string {
+  if (fromMe || typeof value !== 'string') {
+    return '';
+  }
+
+  const name = value.trim();
+
+  if (!name || isReservedSelfName(name)) {
+    return '';
+  }
+
+  const digits = normalizePhone(name);
+  const jidDigits = normalizePhone(remoteJid.split('@')[0]);
+
+  if (
+    digits &&
+    digits.length >= 8 &&
+    (digits === phone || digits === jidDigits)
+  ) {
+    return '';
+  }
+
+  return name;
+}
+
+function isPlaceholderStoredName(
+  value: unknown,
+  phone: string | null,
+  whatsappJid: string,
+  remoteJid: string
+): boolean {
+  if (typeof value !== 'string' || !value.trim()) {
+    return true;
+  }
+
+  const name = value.trim();
+
+  if (
+    isReservedSelfName(name) ||
+    name === 'WhatsApp Contact' ||
+    name === 'WhatsApp Group' ||
+    name === whatsappJid ||
+    name === remoteJid
+  ) {
+    return true;
+  }
+
+  if (phone && (name === phone || name === `+${phone}`)) {
+    return true;
+  }
+
+  const digits = normalizePhone(name);
+  const jidDigits = normalizePhone(remoteJid.split('@')[0]);
+
+  return Boolean(
+    digits &&
+    digits.length >= 8 &&
+    (digits === phone || digits === jidDigits)
+  );
 }
 
 /**
@@ -407,22 +498,16 @@ export async function syncGatewayChatsForSalesMember(
   }
 
   // ---------------------------------------------------------
-  // 4. Keep direct 1-on-1 chats only
+  // 4. Keep supported WhatsApp chats.
   //
-  // Supports:
-  // 923xxxxxxxxx@s.whatsapp.net
-  //
-  // AND modern:
-  // xxxxxxxxx@lid
-  // where remoteJidAlt contains the real number.
-  //
-  // Groups/status/newsletters are ignored.
+  // Supports direct phone JIDs, modern @lid chats, and @g.us groups.
+  // Status/broadcast/newsletter records are ignored.
   // ---------------------------------------------------------
 
   let skippedUnresolvedLidChats = 0;
   let unresolvedLidChats = 0;
 
-  const directChats = chats
+  const supportedChats = chats
     .map((chat) => {
       const identity = resolveChatIdentity(chat);
 
@@ -441,6 +526,7 @@ export async function syncGatewayChatsForSalesMember(
         canonicalWhatsAppJid: identity.canonicalJid,
         resolvedPhone: identity.phone,
         unresolvedLid: identity.unresolvedLid,
+        resolvedChatType: identity.chatType,
       };
     })
     .filter(Boolean) as any[];
@@ -449,7 +535,7 @@ export async function syncGatewayChatsForSalesMember(
   // 5. Sort newest chats and sync max 40 at a time
   // ---------------------------------------------------------
 
-  const sortedChats = directChats
+  const sortedChats = supportedChats
     .sort((a, b) => {
       const timeA = new Date(
         a.updatedAt || 0
@@ -467,7 +553,7 @@ export async function syncGatewayChatsForSalesMember(
   let syncedMessagesCount = 0;
 
   // ---------------------------------------------------------
-  // 6. Process each direct chat
+  // 6. Process each supported chat
   // ---------------------------------------------------------
 
   for (const chat of sortedChats) {
@@ -483,11 +569,34 @@ export async function syncGatewayChatsForSalesMember(
         continue;
       }
 
+      const isGroup = chat.resolvedChatType === 'group';
+      const lastMessageFromMeForName =
+        isMessageFromMe(chat.lastMessage || {});
+
+      const primaryName = isGroup
+        ? (typeof chat.pushName === 'string' ? chat.pushName.trim() : '')
+        : cleanDiscoveredName(
+          chat.pushName,
+          phone,
+          chat.remoteJid,
+          false
+        );
+
+      const secondaryName = isGroup
+        ? ''
+        : cleanDiscoveredName(
+          chat.lastMessage?.pushName,
+          phone,
+          chat.remoteJid,
+          lastMessageFromMeForName
+        );
+
       const discoveredName =
-        chat.pushName ||
-        chat.lastMessage?.pushName ||
-        phone ||
-        'WhatsApp Contact';
+        primaryName ||
+        secondaryName ||
+        (isGroup
+          ? 'WhatsApp Group'
+          : phone || 'WhatsApp Contact');
 
       // -----------------------------------------------------
       // A. Resolve / create contact
@@ -569,13 +678,13 @@ export async function syncGatewayChatsForSalesMember(
         // when Evolution knows the person's pushName.
         if (
           discoveredName &&
-          discoveredName !== phone &&
-          (
-            !existingContact.name ||
-            (phone && existingContact.name === phone) ||
-            (phone && existingContact.name === `+${phone}`) ||
-            existingContact.name === existingContact.whatsapp_jid
-          )
+          isPlaceholderStoredName(
+            existingContact.name,
+            phone,
+            whatsappJid,
+            chat.remoteJid
+          ) &&
+          existingContact.name !== discoveredName
         ) {
           contactUpdates.name = discoveredName;
         }
@@ -620,6 +729,7 @@ export async function syncGatewayChatsForSalesMember(
               resolvedPhoneJid:
                 phone ? `${phone}@s.whatsapp.net` : null,
               unresolvedLid: Boolean(chat.unresolvedLid),
+              chatType: isGroup ? 'group' : 'direct',
               pushName:
                 chat.pushName ||
                 chat.lastMessage?.pushName ||
@@ -1045,6 +1155,18 @@ export async function syncGatewayChatsForSalesMember(
 
                 unresolvedLid:
                   Boolean(chat.unresolvedLid),
+
+                chatType:
+                  isGroup ? 'group' : 'direct',
+
+                participant:
+                  message?.key?.participant || null,
+
+                participantAlt:
+                  message?.key?.participantAlt || null,
+
+                pushName:
+                  message?.pushName || null,
 
                 syncedFromEvolution:
                   true,
