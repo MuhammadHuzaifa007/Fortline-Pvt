@@ -33,22 +33,75 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 type InboxFilter = ConversationStatus | "all" | "unread" | "unanswered" | "overdue";
 type ChatTab = "direct" | "groups";
 
-/** Heuristic: treat a conversation as a group if its contact phone
- *  contains `@g.us` (WhatsApp group JID format) or if the DB-level
- *  `chat_type` field is explicitly set to `'group'`. */
+/** Safely classify WhatsApp group conversations.
+ * Historical Evolution rows can contain null/malformed contact fields, so
+ * never call string methods before checking the value type. */
 function isGroupConversation(conv: Conversation): boolean {
   if (conv.chat_type === "group") return true;
 
   const contact = conv.contact as any;
-  const phone = contact?.phone ?? "";
-  const whatsappJid = contact?.whatsapp_jid ?? "";
-  const metadataRemoteJid = contact?.metadata?.remoteJid ?? "";
+
+  const phone =
+    typeof contact?.phone === "string"
+      ? contact.phone
+      : "";
+
+  const whatsappJid =
+    typeof contact?.whatsapp_jid === "string"
+      ? contact.whatsapp_jid
+      : "";
+
+  const metadataRemoteJid =
+    contact?.metadata &&
+      typeof contact.metadata === "object" &&
+      typeof contact.metadata.remoteJid === "string"
+      ? contact.metadata.remoteJid
+      : "";
 
   return (
     phone.includes("@g.us") ||
     whatsappJid.endsWith("@g.us") ||
     metadataRemoteJid.endsWith("@g.us")
   );
+}
+
+function safeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getConversationDisplayName(
+  conversation: Conversation,
+  unknownLabel: string
+): string {
+  const contact = conversation.contact as any;
+  const isGroup = isGroupConversation(conversation);
+
+  const name = safeString(contact?.name);
+  if (name) return name;
+
+  const phone = safeString(contact?.phone);
+  if (phone) return phone;
+
+  const whatsappJid = safeString(contact?.whatsapp_jid);
+  if (whatsappJid) {
+    const localPart = whatsappJid.split("@")[0]?.trim();
+    if (localPart) return localPart;
+  }
+
+  return isGroup ? "WhatsApp Group" : unknownLabel;
+}
+
+function getSafeTimeAgo(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  try {
+    return formatDistanceToNow(date, { addSuffix: false });
+  } catch {
+    return "";
+  }
 }
 
 interface ConversationListProps {
@@ -231,7 +284,11 @@ export function ConversationList({
   const companies = useMemo(() => {
     const set = new Set<string>();
     for (const c of conversations) {
-      const co = c.contact?.company?.trim();
+      const rawCompany = (c.contact as any)?.company;
+      const co =
+        typeof rawCompany === "string"
+          ? rawCompany.trim()
+          : "";
       if (co) set.add(co);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -282,11 +339,20 @@ export function ConversationList({
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
-        const name = c.contact?.name?.toLowerCase() ?? "";
-        const phone = c.contact?.phone?.toLowerCase() ?? "";
-        const lastMsg = c.last_message_text?.toLowerCase() ?? "";
-        const repName = c.assigned_sales_member?.name?.toLowerCase() ?? "";
-        return name.includes(q) || phone.includes(q) || lastMsg.includes(q) || repName.includes(q);
+        const contact = c.contact as any;
+        const name = safeString(contact?.name).toLowerCase();
+        const phone = safeString(contact?.phone).toLowerCase();
+        const whatsappJid = safeString(contact?.whatsapp_jid).toLowerCase();
+        const lastMsg = safeString((c as any).last_message_text).toLowerCase();
+        const repName = safeString(c.assigned_sales_member?.name).toLowerCase();
+
+        return (
+          name.includes(q) ||
+          phone.includes(q) ||
+          whatsappJid.includes(q) ||
+          lastMsg.includes(q) ||
+          repName.includes(q)
+        );
       });
     }
 
@@ -294,10 +360,23 @@ export function ConversationList({
   }, [conversations, filter, search, selectedTagIds, selectedCompany, selectedSalesMemberId, chatTab]);
 
   // Count groups so the tab can show a badge
-  const groupCount = useMemo(
-    () => conversations.filter(isGroupConversation).length,
-    [conversations]
-  );
+  const groupCount = useMemo(() => {
+    let scoped = conversations.filter(isGroupConversation);
+
+    if (selectedSalesMemberId === "unassigned") {
+      scoped = scoped.filter((c) => !c.assigned_sales_member_id);
+    } else if (
+      selectedSalesMemberId &&
+      selectedSalesMemberId !== "all"
+    ) {
+      scoped = scoped.filter(
+        (c) =>
+          c.assigned_sales_member_id === selectedSalesMemberId
+      );
+    }
+
+    return scoped.length;
+  }, [conversations, selectedSalesMemberId]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -786,10 +865,15 @@ function ConversationItem({
   t,
 }: ConversationItemProps) {
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || t("unknown");
-  const initials = displayName.charAt(0).toUpperCase();
-  const salesMember = conversation.assigned_sales_member;
   const isGroup = isGroupConversation(conversation);
+  const displayName = getConversationDisplayName(
+    conversation,
+    t("unknown")
+  );
+  const initials =
+    displayName.charAt(0).toUpperCase() ||
+    (isGroup ? "G" : "?");
+  const salesMember = conversation.assigned_sales_member;
   const [avatarError, setAvatarError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -797,11 +881,9 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
-  const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
-      addSuffix: false,
-    })
-    : "";
+  const timeAgo = getSafeTimeAgo(
+    conversation.last_message_at
+  );
 
   return (
     <div
