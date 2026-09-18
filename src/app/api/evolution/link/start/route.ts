@@ -124,8 +124,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Fetch linked WhatsApp channel
-    const { data: channel, error: chErr } = await admin
+    // 2. Fetch linked WhatsApp channel.
+    // New sales members may not have a fortline_channels row yet, so
+    // provision a QR-gateway channel automatically instead of failing.
+    const { data: existingChannel, error: chErr } = await admin
       .from('fortline_channels')
       .select(
         'id, sales_member_id, gateway_instance_id, channel_type, connection_status, pairing_state',
@@ -146,11 +148,73 @@ export async function POST(request: Request) {
       );
     }
 
+    let channel = existingChannel;
+
     if (!channel) {
-      return NextResponse.json(
-        { error: 'WhatsApp channel not found for this sales member' },
-        { status: 404 },
-      );
+      const { data: createdChannel, error: createChannelErr } = await admin
+        .from('fortline_channels')
+        .insert({
+          account_id: accountId,
+          sales_member_id: salesMemberId,
+          channel_type: 'qr_gateway',
+          display_phone_number: salesMember.phone_number || null,
+          connection_status: 'disconnected',
+        })
+        .select(
+          'id, sales_member_id, gateway_instance_id, channel_type, connection_status, pairing_state',
+        )
+        .single();
+
+      if (createChannelErr || !createdChannel) {
+        console.error(
+          '[EVOLUTION LINK START] Failed to auto-create WhatsApp channel:',
+          createChannelErr,
+        );
+
+        // A concurrent request may have created it after our first lookup.
+        const { data: racedChannel } = await admin
+          .from('fortline_channels')
+          .select(
+            'id, sales_member_id, gateway_instance_id, channel_type, connection_status, pairing_state',
+          )
+          .eq('sales_member_id', salesMemberId)
+          .eq('account_id', accountId)
+          .maybeSingle();
+
+        if (!racedChannel) {
+          return NextResponse.json(
+            {
+              error:
+                createChannelErr?.message ||
+                'Failed to create WhatsApp channel for this sales member',
+            },
+            { status: 500 },
+          );
+        }
+
+        channel = racedChannel;
+      } else {
+        channel = createdChannel;
+
+        // Keep the optional convenience pointer on the sales member in sync.
+        // This update is non-fatal because the channel relation above is the
+        // source of truth used by the WhatsApp link flow.
+        const { error: memberChannelUpdateErr } = await admin
+          .from('fortline_sales_members')
+          .update({
+            channel_id: createdChannel.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', salesMemberId)
+          .eq('account_id', accountId);
+
+        if (memberChannelUpdateErr) {
+          console.warn(
+            '[EVOLUTION LINK START] Non-fatal: could not update sales member channel_id:',
+            memberChannelUpdateErr,
+          );
+        }
+      }
     }
 
     if (channel.channel_type !== 'qr_gateway') {
