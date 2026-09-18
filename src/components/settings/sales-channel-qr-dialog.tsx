@@ -148,14 +148,52 @@ export function SalesChannelQrDialog({
             stopPolling()
             setUiState('connected')
             setErrorMsg(null)
-            toast.success('WhatsApp connected successfully')
+
+            // Automatically import the newly-connected rep's WhatsApp history.
+            // Connection success is not rolled back if history sync fails.
+            let historySynced = false
+
+            try {
+              const syncRes = await fetch('/api/gateway/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  salesMemberId: memberId,
+                }),
+              })
+
+              if (syncRes.ok) {
+                historySynced = true
+              } else {
+                const syncData = await syncRes.json().catch(() => ({}))
+                console.warn(
+                  '[WhatsApp Link] Connected, but automatic history sync failed:',
+                  syncData?.error || `HTTP ${syncRes.status}`,
+                )
+              }
+            } catch (syncError) {
+              console.warn(
+                '[WhatsApp Link] Connected, but automatic history sync failed:',
+                syncError,
+              )
+            }
+
+            if (historySynced) {
+              toast.success('WhatsApp connected and chats synced successfully')
+            } else {
+              toast.warning(
+                'WhatsApp connected, but older chats could not be synced automatically. Use Sync Chats in Inbox.',
+              )
+            }
+
             onStatusChangedRef.current?.()
 
-            // Auto-close dialog after 1.5s
+            // Give the CRM a moment to refresh the newly imported conversations,
+            // then close the link dialog automatically.
             if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
             autoCloseTimeoutRef.current = setTimeout(() => {
               onOpenChangeRef.current?.(false)
-            }, 1500)
+            }, 2000)
           }
         }
       } catch {
