@@ -11,8 +11,17 @@ interface SyncResult {
   memberName?: string;
   skippedUnresolvedLidChats?: number;
   unresolvedLidChats?: number;
+  totalChats?: number;
+  batchStart?: number;
+  batchEnd?: number;
+  remainingChats?: number;
+  hasMore?: boolean;
   error?: string;
 }
+
+const SYNC_BATCH_SIZE = 100;
+const DETAILED_MESSAGE_CHAT_LIMIT = 20;
+const MESSAGE_LIMIT_PER_CHAT = 15;
 
 interface ExtractedMessage {
   text: string;
@@ -610,10 +619,14 @@ export async function syncGatewayChatsForSalesMember(
     .filter(Boolean) as any[];
 
   // ---------------------------------------------------------
-  // 5. Sort newest chats and sync max 40 at a time
+  // 5. Resumable historical sync.
+  //
+  // Evolution may contain 1,000+ chats. Processing everything in one server
+  // request is too expensive and can hit Vercel timeouts. Persist progress in
+  // fortline_channels.gateway_metadata and process the next 100 chats.
   // ---------------------------------------------------------
 
-  const sortedChats = supportedChats
+  const allSortedChats = supportedChats
     .sort((a, b) => {
       const timeA = new Date(
         a.updatedAt || 0
@@ -624,8 +637,49 @@ export async function syncGatewayChatsForSalesMember(
       ).getTime();
 
       return timeB - timeA;
-    })
-    .slice(0, 40);
+    });
+
+  const totalChats = allSortedChats.length;
+
+  const gatewayMetadata =
+    channel.gateway_metadata &&
+      typeof channel.gateway_metadata === 'object' &&
+      !Array.isArray(channel.gateway_metadata)
+      ? channel.gateway_metadata
+      : {};
+
+  const rawSavedCursor =
+    Number((gatewayMetadata as any).historySyncCursor);
+
+  const savedCursor =
+    Number.isFinite(rawSavedCursor) && rawSavedCursor >= 0
+      ? Math.floor(rawSavedCursor)
+      : 0;
+
+  const historyAlreadyComplete =
+    (gatewayMetadata as any).historySyncComplete === true &&
+    savedCursor >= totalChats;
+
+  const batchStart = historyAlreadyComplete
+    ? 0
+    : Math.min(savedCursor, totalChats);
+
+  const sortedChats = allSortedChats.slice(
+    batchStart,
+    batchStart + SYNC_BATCH_SIZE
+  );
+
+  const batchEnd = historyAlreadyComplete
+    ? Math.min(SYNC_BATCH_SIZE, totalChats)
+    : Math.min(batchStart + sortedChats.length, totalChats);
+
+  const hasMore = historyAlreadyComplete
+    ? false
+    : batchEnd < totalChats;
+
+  const remainingChats = historyAlreadyComplete
+    ? 0
+    : Math.max(totalChats - batchEnd, 0);
 
   let syncedChatsCount = 0;
   let syncedMessagesCount = 0;
@@ -634,7 +688,7 @@ export async function syncGatewayChatsForSalesMember(
   // 6. Process each supported chat
   // ---------------------------------------------------------
 
-  for (const chat of sortedChats) {
+  for (const [chatIndex, chat] of sortedChats.entries()) {
     try {
       const phone: string | null = chat.resolvedPhone || null;
       const whatsappJid: string = chat.canonicalWhatsAppJid;
@@ -1067,90 +1121,87 @@ export async function syncGatewayChatsForSalesMember(
       syncedChatsCount++;
 
       // -----------------------------------------------------
-      // D. Fetch up to 15 recent messages
+      // D. Message history
+      //
+      // Only the newest 20 chats in each batch fetch 15 messages from
+      // Evolution. Older chats use their already-available lastMessage.
+      // This keeps the historical import fast while preserving previews.
       // -----------------------------------------------------
 
       try {
-        const messageResponse =
-          await fetch(
-            `${cleanGatewayUrl}/chat/findMessages/${encodeURIComponent(
-              instanceName
-            )}`,
-            {
-              method: 'POST',
-              headers: {
-                apikey: apiKey,
-                'Content-Type':
-                  'application/json',
-              },
-
-              body: JSON.stringify({
-                where: {
-                  key: {
-                    // IMPORTANT:
-                    // Query using Evolution's actual chat JID,
-                    // which may be @lid.
-                    remoteJid:
-                      chat.remoteJid,
-                  },
-                },
-
-                take: 15,
-              }),
-
-              cache: 'no-store',
-            }
-          );
-
-        if (!messageResponse.ok) {
-          const responseText =
-            await messageResponse.text();
-
-          console.warn(
-            `[gateway-sync] findMessages failed for ${chat.remoteJid}: ${messageResponse.status} ${responseText.slice(
-              0,
-              200
-            )}`
-          );
-
-          continue;
-        }
-
-        const rawMessages =
-          await messageResponse.json();
-
         let messageList: any[] = [];
 
-        if (
-          Array.isArray(rawMessages)
-        ) {
-          messageList = rawMessages;
-        } else if (
-          Array.isArray(
-            rawMessages?.messages?.records
-          )
-        ) {
-          messageList =
-            rawMessages.messages.records;
-        } else if (
-          Array.isArray(
-            rawMessages?.messages
-          )
-        ) {
-          messageList =
-            rawMessages.messages;
-        } else if (
-          Array.isArray(
-            rawMessages?.records
-          )
-        ) {
-          messageList =
-            rawMessages.records;
+        if (chatIndex < DETAILED_MESSAGE_CHAT_LIMIT) {
+          const messageResponse =
+            await fetch(
+              `${cleanGatewayUrl}/chat/findMessages/${encodeURIComponent(
+                instanceName
+              )}`,
+              {
+                method: 'POST',
+                headers: {
+                  apikey: apiKey,
+                  'Content-Type': 'application/json',
+                },
+
+                body: JSON.stringify({
+                  where: {
+                    key: {
+                      remoteJid:
+                        chat.remoteJid,
+                    },
+                  },
+
+                  take: MESSAGE_LIMIT_PER_CHAT,
+                }),
+
+                cache: 'no-store',
+              }
+            );
+
+          if (!messageResponse.ok) {
+            const responseText =
+              await messageResponse.text();
+
+            console.warn(
+              `[gateway-sync] findMessages failed for ${chat.remoteJid}: ${messageResponse.status} ${responseText.slice(
+                0,
+                200
+              )}`
+            );
+          } else {
+            const rawMessages =
+              await messageResponse.json();
+
+            if (Array.isArray(rawMessages)) {
+              messageList = rawMessages;
+            } else if (
+              Array.isArray(
+                rawMessages?.messages?.records
+              )
+            ) {
+              messageList =
+                rawMessages.messages.records;
+            } else if (
+              Array.isArray(
+                rawMessages?.messages
+              )
+            ) {
+              messageList =
+                rawMessages.messages;
+            } else if (
+              Array.isArray(
+                rawMessages?.records
+              )
+            ) {
+              messageList =
+                rawMessages.records;
+            }
+          }
+        } else if (chat.lastMessage?.key?.id) {
+          messageList = [chat.lastMessage];
         }
 
-        // A chat's latest message can be from the monitored sales line and have
-        // pushName "Você". Look through actual inbound history for the customer's
-        // WhatsApp pushName and use it when Evolution exposes one.
         if (!isGroup) {
           const historicalWhatsAppName = messageList
             .filter((message) => !isMessageFromMe(message))
@@ -1178,172 +1229,203 @@ export async function syncGatewayChatsForSalesMember(
           }
         }
 
-        for (const message of messageList) {
-          const messageId =
-            message?.key?.id;
+        const validMessages = messageList.filter(
+          (message) =>
+            typeof message?.key?.id === 'string' &&
+            message.key.id.trim()
+        );
 
-          if (!messageId) {
-            continue;
-          }
-
-          // -------------------------------------------------
-          // Channel-scoped deduplication
-          //
-          // Same message id on another monitored line
-          // must not suppress that other line.
-          // -------------------------------------------------
+        if (validMessages.length > 0) {
+          const messageIds = validMessages.map(
+            (message) => message.key.id
+          );
 
           const {
-            data: existingMessage,
-            error:
-            existingMessageError,
+            data: existingMessages,
+            error: existingMessagesError,
           } = await admin
             .from('messages')
-            .select('id')
-            .eq(
-              'message_id',
-              messageId
-            )
+            .select('message_id')
             .eq(
               'whatsapp_channel_id',
               channel.id
             )
-            .maybeSingle();
+            .in(
+              'message_id',
+              messageIds
+            );
 
-          if (
-            existingMessageError
-          ) {
+          if (existingMessagesError) {
             console.warn(
-              `[gateway-sync] Message dedupe lookup failed for ${messageId}:`,
-              existingMessageError.message
+              `[gateway-sync] Batch message dedupe failed for ${chat.remoteJid}:`,
+              existingMessagesError.message
             );
+          } else {
+            const existingMessageIds =
+              new Set(
+                (existingMessages || [])
+                  .map((row: any) => row.message_id)
+                  .filter(Boolean)
+              );
 
-            continue;
+            const rowsToInsert: any[] = [];
+
+            for (const message of validMessages) {
+              const messageId =
+                message.key.id;
+
+              if (
+                existingMessageIds.has(messageId)
+              ) {
+                continue;
+              }
+
+              const extracted =
+                extractMessageText(message);
+
+              if (
+                !extracted.text &&
+                !extracted.mediaUrl
+              ) {
+                continue;
+              }
+
+              const messageFromMe =
+                isMessageFromMe(message);
+
+              const messageTime =
+                evolutionTimestampToIso(
+                  message.messageTimestamp
+                );
+
+              rowsToInsert.push({
+                conversation_id:
+                  conversationId,
+
+                sales_rep_id:
+                  salesMemberId,
+
+                whatsapp_channel_id:
+                  channel.id,
+
+                message_id:
+                  messageId,
+
+                sender_type:
+                  messageFromMe
+                    ? 'user'
+                    : 'contact',
+
+                content:
+                  extracted.text,
+
+                media_type:
+                  extracted.mediaType,
+
+                media_url:
+                  extracted.mediaUrl ||
+                  null,
+
+                media_mime_type:
+                  extracted.mediaMimeType ||
+                  null,
+
+                status:
+                  messageFromMe
+                    ? 'sent'
+                    : 'delivered',
+
+                channel_phone_number_id:
+                  channel.phone_number_id ||
+                  null,
+
+                sales_member_id:
+                  salesMemberId,
+
+                metadata: {
+                  evolutionInstance:
+                    instanceName,
+
+                  remoteJid:
+                    chat.remoteJid,
+
+                  remoteJidAlt:
+                    chat.resolvedAltJid || null,
+
+                  canonicalWhatsAppJid:
+                    whatsappJid,
+
+                  resolvedPhoneJid:
+                    phone ? `${phone}@s.whatsapp.net` : null,
+
+                  unresolvedLid:
+                    Boolean(chat.unresolvedLid),
+
+                  chatType:
+                    isGroup ? 'group' : 'direct',
+
+                  participant:
+                    message?.key?.participant || null,
+
+                  participantAlt:
+                    message?.key?.participantAlt || null,
+
+                  pushName:
+                    message?.pushName || null,
+
+                  syncedFromEvolution:
+                    true,
+                },
+
+                created_at:
+                  messageTime,
+              });
+            }
+
+            if (rowsToInsert.length > 0) {
+              const {
+                error: bulkInsertError,
+              } = await admin
+                .from('messages')
+                .insert(rowsToInsert);
+
+              if (!bulkInsertError) {
+                syncedMessagesCount +=
+                  rowsToInsert.length;
+              } else {
+                console.warn(
+                  `[gateway-sync] Bulk message insert failed for ${chat.remoteJid}; retrying individually:`,
+                  bulkInsertError.message
+                );
+
+                for (const row of rowsToInsert) {
+                  const {
+                    error: singleInsertError,
+                  } = await admin
+                    .from('messages')
+                    .insert(row);
+
+                  if (!singleInsertError) {
+                    syncedMessagesCount++;
+                    continue;
+                  }
+
+                  if (
+                    singleInsertError.code !== '23505'
+                  ) {
+                    console.warn(
+                      `[gateway-sync] Failed inserting message ${row.message_id}:`,
+                      singleInsertError.message
+                    );
+                  }
+                }
+              }
+            }
           }
-
-          if (existingMessage) {
-            continue;
-          }
-
-          const extracted =
-            extractMessageText(message);
-
-          if (
-            !extracted.text &&
-            !extracted.mediaUrl
-          ) {
-            continue;
-          }
-
-          const messageFromMe =
-            isMessageFromMe(message);
-
-          const messageTime =
-            evolutionTimestampToIso(
-              message.messageTimestamp
-            );
-
-          const {
-            error: messageInsertError,
-          } = await admin
-            .from('messages')
-            .insert({
-              conversation_id:
-                conversationId,
-
-              sales_rep_id:
-                salesMemberId,
-
-              whatsapp_channel_id:
-                channel.id,
-
-              message_id:
-                messageId,
-
-              sender_type:
-                messageFromMe
-                  ? 'user'
-                  : 'contact',
-
-              content:
-                extracted.text,
-
-              media_type:
-                extracted.mediaType,
-
-              media_url:
-                extracted.mediaUrl ||
-                null,
-
-              media_mime_type:
-                extracted.mediaMimeType ||
-                null,
-
-              status:
-                messageFromMe
-                  ? 'sent'
-                  : 'delivered',
-
-              channel_phone_number_id:
-                channel.phone_number_id ||
-                null,
-
-              sales_member_id:
-                salesMemberId,
-
-              metadata: {
-                evolutionInstance:
-                  instanceName,
-
-                remoteJid:
-                  chat.remoteJid,
-
-                remoteJidAlt:
-                  chat.resolvedAltJid || null,
-
-                canonicalWhatsAppJid:
-                  whatsappJid,
-
-                resolvedPhoneJid:
-                  phone ? `${phone}@s.whatsapp.net` : null,
-
-                unresolvedLid:
-                  Boolean(chat.unresolvedLid),
-
-                chatType:
-                  isGroup ? 'group' : 'direct',
-
-                participant:
-                  message?.key?.participant || null,
-
-                participantAlt:
-                  message?.key?.participantAlt || null,
-
-                pushName:
-                  message?.pushName || null,
-
-                syncedFromEvolution:
-                  true,
-              },
-
-              created_at:
-                messageTime,
-            });
-
-          if (messageInsertError) {
-            console.warn(
-              `[gateway-sync] Failed inserting message ${messageId}:`,
-              messageInsertError.message
-            );
-
-            continue;
-          }
-
-          syncedMessagesCount++;
         }
       } catch (messageError: any) {
         console.warn(
-          `[gateway-sync] Failed to fetch messages for ${chat.remoteJid}:`,
+          `[gateway-sync] Failed to fetch/process messages for ${chat.remoteJid}:`,
           messageError?.message ||
           messageError
         );
@@ -1377,7 +1459,10 @@ export async function syncGatewayChatsForSalesMember(
     })
     .eq('id', salesMemberId);
 
-  // Keep channel activity fresh too.
+  // Keep channel activity fresh and persist the resumable history cursor.
+  const syncFinishedAt =
+    new Date().toISOString();
+
   await admin
     .from('fortline_channels')
     .update({
@@ -1385,10 +1470,28 @@ export async function syncGatewayChatsForSalesMember(
         'connected',
 
       last_successful_event_at:
-        new Date().toISOString(),
+        syncFinishedAt,
+
+      gateway_metadata: {
+        ...(gatewayMetadata as Record<string, unknown>),
+        historySyncCursor:
+          hasMore
+            ? batchEnd
+            : totalChats,
+        historySyncComplete:
+          !hasMore,
+        historySyncTotal:
+          totalChats,
+        historySyncLastBatchStart:
+          batchStart,
+        historySyncLastBatchEnd:
+          batchEnd,
+        historySyncUpdatedAt:
+          syncFinishedAt,
+      },
 
       updated_at:
-        new Date().toISOString(),
+        syncFinishedAt,
     })
     .eq('id', channel.id);
 
@@ -1402,5 +1505,10 @@ export async function syncGatewayChatsForSalesMember(
       member.name,
     skippedUnresolvedLidChats,
     unresolvedLidChats,
+    totalChats,
+    batchStart,
+    batchEnd,
+    remainingChats,
+    hasMore,
   };
 }
