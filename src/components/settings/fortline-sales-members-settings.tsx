@@ -42,6 +42,20 @@ const DEFAULT_DIVISIONS = [
   'IT Managed & Cloud Services',
 ]
 
+
+function compactGatewayId(value?: string | null) {
+  if (!value) return '—'
+  if (value.length <= 20) return value
+
+  const prefix = value.startsWith('fortline_rep_')
+    ? 'fortline_rep_'
+    : value.slice(0, 12)
+
+  const suffix = value.slice(-6)
+
+  return `${prefix}…${suffix}`
+}
+
 export function FortlineSalesMembersSettings() {
   const [members, setMembers] = useState<FortlineSalesMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -411,7 +425,7 @@ export function FortlineSalesMembersSettings() {
               <th className="py-3 px-3">Staff Name & Designation</th>
               <th className="py-3 px-3">Division</th>
               <th className="py-3 px-3">WhatsApp Number</th>
-              <th className="py-3 px-3">Channel / Gateway ID</th>
+              <th className="py-3 px-3">Gateway</th>
               <th className="py-3 px-3">Status</th>
               <th className="py-3 px-3 text-right">Actions</th>
             </tr>
@@ -458,12 +472,33 @@ export function FortlineSalesMembersSettings() {
                       <span>{m.phone_number || 'No number'}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-3 font-mono text-[10px] text-muted-foreground">
-                    {(
-                      m as FortlineSalesMember & {
-                        gateway_instance_id?: string | null
+                  <td className="py-3 px-3">
+                    {(() => {
+                      const gatewayId = (
+                        m as FortlineSalesMember & {
+                          gateway_instance_id?: string | null
+                        }
+                      ).gateway_instance_id
+
+                      if (!gatewayId) {
+                        return (
+                          <span className="text-[10px] text-muted-foreground/70">
+                            —
+                          </span>
+                        )
                       }
-                    ).gateway_instance_id || '—'}
+
+                      return (
+                        <span
+                          title={gatewayId}
+                          className="inline-flex max-w-[145px] items-center rounded-md border border-border/60 bg-muted/40 px-2 py-1 font-mono text-[10px] text-muted-foreground"
+                        >
+                          <span className="truncate">
+                            {compactGatewayId(gatewayId)}
+                          </span>
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="py-3 px-3">
                     {/* WhatsApp Gateway connection status — the CEO's view of whether
