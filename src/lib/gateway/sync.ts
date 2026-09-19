@@ -293,6 +293,93 @@ function isReservedSelfName(value: string): boolean {
   return ['voce', 'you', 'me', 'myself'].includes(normalized);
 }
 
+
+function isGenericWhatsAppName(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+
+  return (
+    normalized === 'whatsapp contact' ||
+    normalized === 'whatsapp user' ||
+    normalized === 'unknown whatsapp' ||
+    normalized === 'unknown'
+  );
+}
+
+function isNumericIdentityLabel(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  // Phone/LID-looking strings are identities, not display names.
+  // Examples: 923313081659, +92 331 3081659, 237413494464639
+  return /^[+\d\s()._-]+$/.test(trimmed) &&
+    normalizePhone(trimmed).length >= 7;
+}
+
+function cleanStrictWhatsAppName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+
+  const name = value.trim();
+
+  if (
+    !name ||
+    isReservedSelfName(name) ||
+    isGenericWhatsAppName(name) ||
+    isNumericIdentityLabel(name) ||
+    name.includes('@s.whatsapp.net') ||
+    name.includes('@lid') ||
+    name.includes('@g.us')
+  ) {
+    return '';
+  }
+
+  return name;
+}
+
+function identityLookupKeys(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+
+  const raw = value.trim().toLowerCase();
+  if (!raw) return [];
+
+  const keys = new Set<string>();
+  keys.add(`raw:${raw}`);
+
+  const localPart = raw.split('@')[0] || raw;
+  const digits = normalizePhone(localPart);
+
+  if (digits.length >= 7) {
+    keys.add(`digits:${digits}`);
+  }
+
+  return [...keys];
+}
+
+function setNameAliases(
+  map: Map<string, string>,
+  name: string,
+  ...identities: unknown[]
+) {
+  for (const identity of identities) {
+    for (const key of identityLookupKeys(identity)) {
+      map.set(key, name);
+    }
+  }
+}
+
+function lookupNameByIdentities(
+  map: Map<string, string>,
+  ...identities: unknown[]
+): string {
+  for (const identity of identities) {
+    for (const key of identityLookupKeys(identity)) {
+      const name = map.get(key);
+      if (name) return name;
+    }
+  }
+
+  return '';
+}
+
 function cleanDiscoveredName(
   value: unknown,
   phone: string | null,
@@ -346,6 +433,13 @@ function isPlaceholderStoredName(
   }
 
   if (phone && (name === phone || name === `+${phone}`)) {
+    return true;
+  }
+
+  if (
+    isGenericWhatsAppName(name) ||
+    isNumericIdentityLabel(name)
+  ) {
     return true;
   }
 
@@ -523,7 +617,7 @@ export async function syncGatewayChatsForSalesMember(
         },
         body: JSON.stringify({
           where: {},
-          take: 500,
+          take: 5000,
         }),
         cache: 'no-store',
       }
@@ -553,35 +647,41 @@ export async function syncGatewayChatsForSalesMember(
     );
   }
 
-  const whatsappNameByJid = new Map<string, string>();
+  const whatsappNameByIdentity = new Map<string, string>();
 
   for (const evolutionContact of evolutionContacts) {
-    const contactJid =
-      typeof evolutionContact?.remoteJid === 'string'
-        ? evolutionContact.remoteJid.trim()
-        : '';
-
     const contactNameCandidates = [
       evolutionContact?.pushName,
       evolutionContact?.name,
       evolutionContact?.verifiedName,
       evolutionContact?.notify,
+      evolutionContact?.shortName,
+      evolutionContact?.displayName,
     ];
 
-    const contactPushName =
+    const contactName =
       contactNameCandidates
-        .find(
-          (value) =>
-            typeof value === 'string' &&
-            value.trim() &&
-            !isReservedSelfName(value)
-        );
+        .map(cleanStrictWhatsAppName)
+        .find(Boolean) || '';
 
-    if (!contactJid || typeof contactPushName !== 'string') {
+    if (!contactName) {
       continue;
     }
 
-    whatsappNameByJid.set(contactJid, contactPushName.trim());
+    // Evolution can represent the same person by phone JID or modern @lid.
+    // Register the real WhatsApp name against every identity it exposes.
+    setNameAliases(
+      whatsappNameByIdentity,
+      contactName,
+      evolutionContact?.remoteJid,
+      evolutionContact?.remoteJidAlt,
+      evolutionContact?.jid,
+      evolutionContact?.lid,
+      evolutionContact?.number,
+      evolutionContact?.phone,
+      evolutionContact?.phoneNumber,
+      evolutionContact?.id,
+    );
   }
 
   // ---------------------------------------------------------
@@ -707,23 +807,20 @@ export async function syncGatewayChatsForSalesMember(
 
       const directoryNameRaw = isGroup
         ? ''
-        : (
-          whatsappNameByJid.get(whatsappJid) ||
-          whatsappNameByJid.get(chat.remoteJid) ||
-          (chat.resolvedAltJid
-            ? whatsappNameByJid.get(chat.resolvedAltJid)
-            : '') ||
-          ''
+        : lookupNameByIdentities(
+          whatsappNameByIdentity,
+          whatsappJid,
+          chat.remoteJid,
+          chat.resolvedRemoteJid,
+          chat.resolvedAltJid,
+          chat.remoteJidAlt,
+          chat.lastMessage?.key?.remoteJid,
+          chat.lastMessage?.key?.remoteJidAlt,
         );
 
       const directoryName = isGroup
         ? ''
-        : cleanDiscoveredName(
-          directoryNameRaw,
-          phone,
-          chat.remoteJid,
-          false
-        );
+        : cleanStrictWhatsAppName(directoryNameRaw);
 
       const chatNameCandidates = isGroup
         ? [
@@ -736,50 +833,46 @@ export async function syncGatewayChatsForSalesMember(
           chat.name,
           chat.verifiedName,
           chat.notify,
+          chat.displayName,
         ];
 
       const primaryName = isGroup
         ? (
-          chatNameCandidates.find(
-            (value) =>
-              typeof value === 'string' &&
-              value.trim()
-          ) as string | undefined
-        )?.trim() || ''
-        : (
           chatNameCandidates
             .map((value) =>
-              cleanDiscoveredName(
-                value,
-                phone,
-                chat.remoteJid,
-                false
-              )
+              typeof value === 'string'
+                ? value.trim()
+                : ''
             )
+            .find(Boolean) || ''
+        )
+        : (
+          chatNameCandidates
+            .map(cleanStrictWhatsAppName)
             .find(Boolean) || ''
         );
 
       const secondaryName = isGroup
         ? ''
-        : cleanDiscoveredName(
-          chat.lastMessage?.pushName,
-          phone,
-          chat.remoteJid,
+        : (
           lastMessageFromMeForName
+            ? ''
+            : cleanStrictWhatsAppName(
+              chat.lastMessage?.pushName
+            )
         );
 
-      const jidLocalPart =
-        typeof chat.remoteJid === 'string'
-          ? chat.remoteJid.split('@')[0]
-          : '';
-
+      // STRICT DISPLAY RULE:
+      // Real WhatsApp name -> show it exactly.
+      // No real name -> "WhatsApp Contact".
+      // Never use phone/LID digits as a fake contact name.
       const discoveredName =
         directoryName ||
         primaryName ||
         secondaryName ||
         (isGroup
           ? 'WhatsApp Group'
-          : phone || jidLocalPart || 'Unknown WhatsApp');
+          : 'WhatsApp Contact');
 
       // -----------------------------------------------------
       // A. Resolve / create contact
@@ -857,14 +950,28 @@ export async function syncGatewayChatsForSalesMember(
             salesMemberId;
         }
 
-        // Keep CRM contact name aligned with the WhatsApp name Evolution exposes.
-        // Reserved self labels such as "Você" are already filtered above.
+        const hasRealDiscoveredName =
+          discoveredName !== 'WhatsApp Contact' &&
+          discoveredName !== 'WhatsApp Group';
+
         if (
-          discoveredName &&
-          discoveredName !== 'WhatsApp Group' &&
+          hasRealDiscoveredName &&
           existingContact.name !== discoveredName
         ) {
+          // A genuine WhatsApp display name always wins.
           contactUpdates.name = discoveredName;
+        } else if (
+          !hasRealDiscoveredName &&
+          isPlaceholderStoredName(
+            existingContact.name,
+            phone,
+            whatsappJid,
+            chat.remoteJid
+          ) &&
+          existingContact.name !== 'WhatsApp Contact'
+        ) {
+          // Clean previously saved raw phone/LID labels.
+          contactUpdates.name = 'WhatsApp Contact';
         }
 
         if (
@@ -1206,11 +1313,8 @@ export async function syncGatewayChatsForSalesMember(
           const historicalWhatsAppName = messageList
             .filter((message) => !isMessageFromMe(message))
             .map((message) =>
-              cleanDiscoveredName(
-                message?.pushName,
-                phone,
-                chat.remoteJid,
-                false
+              cleanStrictWhatsAppName(
+                message?.pushName
               )
             )
             .find(Boolean);

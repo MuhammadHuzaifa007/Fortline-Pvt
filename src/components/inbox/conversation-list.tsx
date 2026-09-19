@@ -69,6 +69,18 @@ function safeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+
+function isNumericContactLabel(value: string): boolean {
+  const trimmed = value.trim();
+
+  if (!trimmed) return false;
+
+  return (
+    /^[+\d\s()._-]+$/.test(trimmed) &&
+    trimmed.replace(/\D/g, "").length >= 7
+  );
+}
+
 function getConversationDisplayName(
   conversation: Conversation,
   unknownLabel: string
@@ -77,18 +89,20 @@ function getConversationDisplayName(
   const isGroup = isGroupConversation(conversation);
 
   const name = safeString(contact?.name);
-  if (name) return name;
 
-  const phone = safeString(contact?.phone);
-  if (phone) return phone;
-
-  const whatsappJid = safeString(contact?.whatsapp_jid);
-  if (whatsappJid) {
-    const localPart = whatsappJid.split("@")[0]?.trim();
-    if (localPart) return localPart;
+  if (
+    name &&
+    !isNumericContactLabel(name) &&
+    !name.includes("@lid") &&
+    !name.includes("@s.whatsapp.net")
+  ) {
+    return name;
   }
 
-  return isGroup ? "WhatsApp Group" : unknownLabel;
+  // Never show long phone/LID identifiers as a person's display name.
+  // The backend will replace this with the real WhatsApp name whenever
+  // Evolution exposes one.
+  return isGroup ? "WhatsApp Group" : "WhatsApp Contact";
 }
 
 function getSafeTimeAgo(value: unknown): string {
