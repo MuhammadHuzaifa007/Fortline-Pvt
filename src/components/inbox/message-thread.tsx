@@ -19,8 +19,6 @@ import type {
 } from "@/types";
 import {
   MessageCircle,
-  ChevronDown,
-  UserPlus,
   Check,
   Clock,
   ArrowLeft,
@@ -31,6 +29,7 @@ import {
   Info,
   History,
   Users,
+  MoreVertical,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -1022,11 +1021,6 @@ export function MessageThread({
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
-  const assignedAgentId = conversation.assigned_agent_id ?? null;
-  const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
-  const assignLabel = assignedAgentId
-    ? (currentAssignee?.full_name ?? t("assigned"))
-    : t("assign");
 
   return (
     // `min-w-0` is load-bearing: the page already puts min-w-0 on the
@@ -1123,22 +1117,7 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Mobile & Tablet Info button — opens the contact details Sheet drawer */}
-          <button
-            type="button"
-            onClick={() => setMobileContactOpen(true)}
-            aria-label="View Contact Details"
-            title="View Contact Details"
-            className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
-          >
-            <Info className="h-4 w-4" />
-          </button>
-
-          {/* Contact-panel toggle — desktop only. The contact sidebar
-              eats a chunk of horizontal width that crowds the thread on
-              smaller laptops; this lets agents reclaim it when they just
-              want to read and reply. Hidden on mobile, where the sidebar
-              never renders as a permanent panel anyway. Issue #258. */}
+          {/* Contact-panel toggle — desktop only */}
           {onToggleContactPanel && (
             <button
               type="button"
@@ -1161,147 +1140,82 @@ export function MessageThread({
             </button>
           )}
 
-          {/* Sync Chat History from WhatsApp */}
-          <button
-            type="button"
-            onClick={handleSyncHistory}
-            disabled={isSyncingHistory}
-            aria-label="Sync Chat History from WhatsApp"
-            title="Sync Chat History from WhatsApp (pull yesterday & older chats)"
-            className={cn(
-              "inline-flex h-7 items-center gap-1 px-1.5 sm:px-2 rounded-md text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60 border border-border/50",
-              isSyncingHistory && "text-primary"
-            )}
-          >
-            <History
-              className={cn("h-3.5 w-3.5", isSyncingHistory && "animate-spin")}
-            />
-            <span className="hidden sm:inline">Sync History</span>
-          </button>
-
-          {/* Manual refresh — forces a refetch of the messages + the
-              conversation list (the parent bumps its resyncToken). Useful
-              when realtime missed an event or the agent just wants to be
-              sure nothing's stale. Only rendered when the parent wires
-              up `onRefresh`. */}
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={handleRefreshClick}
-              disabled={isRefreshing}
-              aria-label={t("refreshConversation")}
-              title={t("refresh")}
-              className={cn(
-                "inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60",
-              )}
-            >
-              <RefreshCw
-                className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
-              />
-            </button>
-          )}
-
-          {/* Log call button — owner / admin / agent only */}
+          {/* Log call / Phone button */}
           {canLogCall && (
             <button
               type="button"
               onClick={() => setLogCallOpen(true)}
               aria-label={tCalls("logCall")}
               title={tCalls("logCall")}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95"
             >
-              <Phone className="h-3.5 w-3.5" />
+              <Phone className="h-4 w-4" />
             </button>
           )}
 
-          {/* Status dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className={cn(
-                  "inline-flex items-center justify-center h-7 gap-1 px-1.5 sm:px-2 text-xs rounded-md hover:bg-muted",
-                  currentStatus?.color ?? "text-muted-foreground"
-                )}>
-                <span className="hidden xs:inline">{currentStatus ? t(`status${currentStatus.label}`) : t("status")}</span>
-                <span className="xs:hidden font-medium text-[11px]">{currentStatus ? t(`status${currentStatus.label}`).slice(0, 3) : t("status").slice(0, 3)}</span>
-                <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="border-border bg-popover"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => handleStatusChange(opt.value)}
-                  className={cn("text-sm", opt.color)}
-                >
-                  {t(`status${opt.label}`)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Assign dropdown */}
+          {/* WhatsApp-style 3-dots Menu (More options) */}
           <DropdownMenu>
             <DropdownMenuTrigger
-              className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-1.5 sm:px-2 text-xs rounded-md hover:bg-muted",
-                assignedAgentId ? "text-primary" : "text-muted-foreground"
-              )}
+              aria-label="More options"
+              title="More options"
+              className="inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-95 focus:outline-none"
             >
-              <UserPlus className="h-3 w-3" />
-              <span className="hidden sm:inline">{assignLabel}</span>
-              <ChevronDown className="h-3 w-3" />
+              <MoreVertical className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="border-border bg-popover"
+              className="w-52 border-border bg-popover shadow-lg"
             >
-              {profiles.length === 0 ? (
-                <DropdownMenuItem disabled className="text-sm text-muted-foreground">
-                  {t("noTeammates")}
+              {/* View contact info */}
+              <DropdownMenuItem
+                onClick={() => setMobileContactOpen(true)}
+                className="flex items-center gap-2.5 text-xs sm:text-sm cursor-pointer"
+              >
+                <Info className="h-4 w-4 text-muted-foreground" />
+                <span>Contact info</span>
+              </DropdownMenuItem>
+
+              {/* Refresh conversation */}
+              {onRefresh && (
+                <DropdownMenuItem
+                  onClick={handleRefreshClick}
+                  disabled={isRefreshing}
+                  className="flex items-center gap-2.5 text-xs sm:text-sm cursor-pointer"
+                >
+                  <RefreshCw className={cn("h-4 w-4 text-muted-foreground", isRefreshing && "animate-spin")} />
+                  <span>Refresh conversation</span>
                 </DropdownMenuItem>
-              ) : (
-                profiles.map((p) => {
-                  const isSelected = p.user_id === assignedAgentId;
-                  const presence = getPresence(p.user_id);
-                  return (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => handleAssignChange(p.user_id)}
-                      className={cn(
-                        "text-sm",
-                        isSelected ? "text-primary" : "text-popover-foreground"
-                      )}
-                    >
-                      <PresenceDot
-                        status={presence}
-                        label={presenceLabel(
-                          presence,
-                          getRow(p.user_id)?.last_seen_at ?? null,
-                          now
-                        )}
-                        className="mr-2"
-                      />
-                      <span className="flex-1">
-                        {p.full_name}
-                        {p.user_id === user?.id ? t("me") : ""}
-                      </span>
-                      {isSelected && <Check className="ml-2 h-3 w-3" />}
-                    </DropdownMenuItem>
-                  );
-                })
               )}
-              {assignedAgentId && (
-                <>
-                  <DropdownMenuSeparator className="bg-border" />
+
+              {/* Sync Chat History from WhatsApp */}
+              <DropdownMenuItem
+                onClick={handleSyncHistory}
+                disabled={isSyncingHistory}
+                className="flex items-center gap-2.5 text-xs sm:text-sm cursor-pointer"
+              >
+                <History className={cn("h-4 w-4 text-muted-foreground", isSyncingHistory && "animate-spin")} />
+                <span>{isSyncingHistory ? "Syncing history..." : "Sync history from phone"}</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator className="bg-border my-1" />
+
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Chat Status
+              </div>
+
+              {STATUS_OPTIONS.map((opt) => {
+                const isSelected = conversation.status === opt.value;
+                return (
                   <DropdownMenuItem
-                    onClick={() => handleAssignChange(null)}
-                    className="text-sm text-muted-foreground"
+                    key={opt.value}
+                    onClick={() => handleStatusChange(opt.value)}
+                    className={cn("flex items-center justify-between text-xs sm:text-sm cursor-pointer", opt.color)}
                   >
-                    {t("unassign")}
+                    <span>{t(`status${opt.label}`)}</span>
+                    {isSelected && <Check className="h-3.5 w-3.5" />}
                   </DropdownMenuItem>
-                </>
-              )}
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1396,7 +1310,7 @@ export function MessageThread({
         conversationId={conversation.id}
         disabled={conversation.ai_autoreply_disabled ?? false}
         handoffSummary={conversation.ai_handoff_summary}
-        assignedAgentId={assignedAgentId}
+        assignedAgentId={conversation.assigned_agent_id ?? null}
         currentUserId={user?.id}
         onChange={(patch) => {
           if ("assigned_agent_id" in patch) {

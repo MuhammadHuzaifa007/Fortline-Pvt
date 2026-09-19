@@ -132,16 +132,22 @@ function MessageContent({
         />
       );
 
-    case "image":
+    case "image": {
+      const hasRealCaption =
+        effectiveText &&
+        !["[image]", "[photo]", "image", "photo"].includes(
+          effectiveText.trim().toLowerCase()
+        );
+
       return (
-        <div>
+        <div className="flex flex-col">
           {message.media_url ? (
             <MediaImageBubble message={message} onOpen={openMedia} t={t} />
           ) : (
             <MediaUnavailable label={t("photo")} t={t} />
           )}
-          {effectiveText && (
-            <div className="mt-1">
+          {hasRealCaption && (
+            <div className="mt-1 px-1">
               <FormattedMessageText
                 text={effectiveText}
                 isAgent={isAgent}
@@ -150,17 +156,22 @@ function MessageContent({
           )}
         </div>
       );
+    }
 
-    case "video":
+    case "video": {
+      const hasRealVideoCaption =
+        effectiveText &&
+        !["[video]", "video"].includes(effectiveText.trim().toLowerCase());
+
       return (
-        <div>
+        <div className="flex flex-col">
           {message.media_url ? (
             <MediaVideoBubble message={message} onOpen={openMedia} t={t} />
           ) : (
             <MediaUnavailable label={t("video")} t={t} />
           )}
-          {effectiveText && (
-            <div className="mt-1">
+          {hasRealVideoCaption && (
+            <div className="mt-1 px-1">
               <FormattedMessageText
                 text={effectiveText}
                 isAgent={isAgent}
@@ -169,6 +180,7 @@ function MessageContent({
           )}
         </div>
       );
+    }
 
     case "audio":
       return (
@@ -290,6 +302,15 @@ export function MessageBubble({
     (message as unknown as Record<string, unknown>).is_edited
   );
 
+  const isImageOrVideo = message.content_type === "image" || message.content_type === "video";
+  const rawText = message.content_text || (message as any).content || "";
+  const hasCaption =
+    rawText &&
+    !["[image]", "[photo]", "[video]", "image", "photo", "video"].includes(
+      rawText.trim().toLowerCase()
+    );
+  const isMediaOnly = isImageOrVideo && !hasCaption;
+
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
   return (
@@ -301,7 +322,8 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2 shadow-sm",
+          "relative rounded-2xl shadow-sm",
+          isMediaOnly ? "p-1 sm:p-1.5" : "px-3 py-2",
           isAgent
             ? "rounded-br-md bg-[#008069] dark:bg-[#005c4b] text-white"
             : "rounded-bl-md bg-muted dark:bg-[#202c33] text-foreground",

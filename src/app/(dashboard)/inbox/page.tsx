@@ -720,19 +720,20 @@ function InboxPageInner() {
   return (
     <div className="-m-4 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden sm:-m-6 2xl:-m-8">
       {/* Top Executive Oversight Bar */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-2 sm:px-4 gap-1 sm:gap-2 min-w-0">
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink">
+      <div className="flex h-11 sm:h-12 shrink-0 items-center justify-between border-b border-border bg-card px-2.5 sm:px-4 gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink-0">
           <WhatsAppChatsIcon className="h-4 w-4 shrink-0 text-[#008069]" />
-          <span className="text-xs font-bold text-foreground truncate">
-            Executive<span className="hidden xs:inline"> WhatsApp</span><span className="hidden sm:inline"> Oversight</span>
+          <span className="text-xs sm:text-sm font-bold text-foreground whitespace-nowrap">
+            <span className="inline sm:hidden">WhatsApp Oversight</span>
+            <span className="hidden sm:inline">Executive WhatsApp Oversight</span>
           </span>
-          <span className="hidden md:inline text-xs text-muted-foreground shrink-0">
+          <span className="hidden md:inline text-xs text-muted-foreground font-normal shrink-0">
             (30 Sales Lines)
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <div className="flex items-center gap-1 sm:gap-1.5">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 justify-end">
+          <div className="flex items-center gap-1 sm:gap-1.5 min-w-0 max-w-[170px] xs:max-w-[220px] sm:max-w-[320px]">
             <Users className="size-3.5 shrink-0 text-muted-foreground" />
             <select
               value={selectedSalesMemberId || "all"}
@@ -747,7 +748,7 @@ function InboxPageInner() {
                 }
                 router.replace(`/inbox?${params.toString()}`, { scroll: false });
               }}
-              className="h-7 rounded-md border border-border bg-background px-1.5 sm:px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer max-w-[130px] xs:max-w-[160px] sm:max-w-[240px] md:max-w-[320px] truncate"
+              className="h-7 sm:h-7.5 w-full min-w-0 rounded-md border border-border bg-background px-1.5 sm:px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer truncate"
             >
               <option value="all">All 30 Sales Lines</option>
               <option value="unassigned">📥 Unassigned / Direct Inbound</option>
@@ -764,10 +765,10 @@ function InboxPageInner() {
               disabled={syncingRep}
               title="Sync recent WhatsApp chats from phone into CRM"
               aria-label="Sync chats"
-              className="inline-flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              className="inline-flex items-center justify-center gap-1.5 h-7 sm:h-7.5 px-2 sm:px-2.5 rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-xs shrink-0"
             >
               <RefreshCw className={cn("size-3", syncingRep && "animate-spin")} />
-              <span className="hidden sm:inline">{syncingRep ? "Syncing..." : "Sync Chats"}</span>
+              <span className="hidden sm:inline">{syncingRep ? "Syncing..." : "Sync"}</span>
             </button>
           )}
         </div>
@@ -783,11 +784,11 @@ function InboxPageInner() {
         </div>
       )}
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden w-full">
         {/* Left panel: Conversation list */}
         <div
           className={cn(
-            "flex h-full flex-1 md:flex-none",
+            "flex h-full flex-1 md:flex-none min-w-0 w-full md:w-auto",
             hasActiveConv ? "hidden md:flex" : "flex",
           )}
         >

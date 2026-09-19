@@ -28,11 +28,53 @@ const PROXY_PREFIX = "/api/whatsapp/media/";
 const GATEWAY_PROXY_PREFIX = "/api/gateway/media/";
 
 /**
- * Returns a displayable URL for a message. Encrypted WhatsApp CDN URLs
- * (https://mmg.whatsapp.net/...) are redirected through our gateway media decryption proxy.
+ * Returns a displayable URL for a message.
+ * 1. Data URLs are returned as-is.
+ * 2. If message metadata has a jpegThumbnail from WhatsApp, convert it to a data URI directly.
+ * 3. Encrypted WhatsApp CDN URLs are routed through the gateway media proxy.
  */
-export function resolveDisplayMediaUrl(message: { id: string; message_id?: string; media_url?: string | null; media_type?: string | null }): string | undefined {
+export function resolveDisplayMediaUrl(message: {
+  id: string;
+  message_id?: string;
+  media_url?: string | null;
+  media_type?: string | null;
+  metadata?: any;
+}): string | undefined {
   if (message.media_url?.startsWith('data:')) return message.media_url;
+
+  // Extract jpegThumbnail from raw WhatsApp metadata if present
+  const rawMsg = message.metadata?.rawMessage || message.metadata?.message;
+  const thumbObj = rawMsg?.imageMessage?.jpegThumbnail || rawMsg?.videoMessage?.jpegThumbnail;
+  if (thumbObj) {
+    try {
+      if (typeof thumbObj === 'string') {
+        return thumbObj.startsWith('data:') ? thumbObj : `data:image/jpeg;base64,${thumbObj}`;
+      }
+      let values: number[] | null = null;
+      if (Array.isArray(thumbObj)) {
+        values = thumbObj;
+      } else if (thumbObj && typeof thumbObj === 'object') {
+        if (Array.isArray((thumbObj as any).data)) {
+          values = (thumbObj as any).data;
+        } else {
+          values = Object.values(thumbObj) as number[];
+        }
+      }
+      if (values && values.length > 0) {
+        const bytes = new Uint8Array(values);
+        let binary = '';
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const b64 = typeof btoa !== 'undefined' ? btoa(binary) : Buffer.from(bytes).toString('base64');
+        return `data:image/jpeg;base64,${b64}`;
+      }
+    } catch {
+      // Fall through to gateway proxy
+    }
+  }
+
   if (message.media_url?.startsWith('https://mmg.whatsapp.net') || message.media_url?.startsWith(GATEWAY_PROXY_PREFIX)) {
     return `${GATEWAY_PROXY_PREFIX}${message.id}`;
   }

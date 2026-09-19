@@ -2,10 +2,39 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getGatewayConfig, gatewayFetch } from '@/lib/gateway/config';
 
+function getThumbnailBuffer(msg: any): { buffer: Buffer; mime: string } | null {
+  const rawMsg = msg.metadata?.rawMessage || msg.metadata?.message;
+  const thumb = rawMsg?.imageMessage?.jpegThumbnail || rawMsg?.videoMessage?.jpegThumbnail;
+  if (!thumb) return null;
+  try {
+    if (typeof thumb === 'string') {
+      const b64 = thumb.startsWith('data:') ? thumb.split(',')[1] : thumb;
+      return { buffer: Buffer.from(b64, 'base64'), mime: 'image/jpeg' };
+    }
+    let values: number[] | null = null;
+    if (Array.isArray(thumb)) {
+      values = thumb;
+    } else if (thumb && typeof thumb === 'object') {
+      if (Array.isArray((thumb as any).data)) {
+        values = (thumb as any).data;
+      } else {
+        values = Object.values(thumb) as number[];
+      }
+    }
+    if (values && values.length > 0) {
+      return { buffer: Buffer.from(values), mime: 'image/jpeg' };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ messageId: string }> | { messageId: string } }
 ) {
+  let loadedMsg: any = null;
   try {
     const resolvedParams = await Promise.resolve(context.params);
     const { messageId } = resolvedParams;
@@ -31,6 +60,7 @@ export async function GET(
     if (msgErr || !msg) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 });
     }
+    loadedMsg = msg;
 
     // 2. If already a base64 data URL, parse and serve directly
     if (msg.media_url && msg.media_url.startsWith('data:')) {
@@ -80,6 +110,10 @@ export async function GET(
     }
 
     if (!instanceName) {
+      const fallback = getThumbnailBuffer(msg);
+      if (fallback) {
+        return serveMediaBuffer(fallback.buffer, fallback.mime, request);
+      }
       return NextResponse.json({ error: 'No active WhatsApp gateway instance found' }, { status: 404 });
     }
 
@@ -119,29 +153,48 @@ export async function GET(
     }
 
     // 5. Decrypt media via Evolution API
+    const rawMsg = msg.metadata?.rawMessage || msg.metadata?.message;
     const mediaPayload = messageRecord
       ? { message: messageRecord, convertToMp4: false }
-      : { message: { key: { id: waMessageId } }, convertToMp4: false };
+      : {
+          message: {
+            key: msg.metadata?.key || { id: waMessageId, fromMe: msg.metadata?.fromMe, remoteJid: msg.metadata?.remoteJid },
+            message: rawMsg,
+          },
+          convertToMp4: false,
+        };
 
-    const evoRes = await gatewayFetch(
-      gatewayConfig.gateway_url,
-      `/chat/getBase64FromMediaMessage/${instanceName}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: gatewayConfig.api_key,
-        },
-        body: JSON.stringify(mediaPayload),
+    let evoRes: Response | null = null;
+    try {
+      evoRes = await gatewayFetch(
+        gatewayConfig.gateway_url,
+        `/chat/getBase64FromMediaMessage/${instanceName}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: gatewayConfig.api_key,
+          },
+          body: JSON.stringify(mediaPayload),
+        }
+      );
+    } catch (e: any) {
+      console.warn('[gateway-media] Network error contacting Evolution API:', e.message);
+    }
+
+    if (!evoRes || !evoRes.ok) {
+      const errText = evoRes ? await evoRes.text().catch(() => '') : 'Unreachable';
+      console.warn('[gateway-media] Evolution API media error:', evoRes?.status, errText);
+
+      // Fall back to embedded WhatsApp JPEG thumbnail from message metadata
+      const fallback = getThumbnailBuffer(msg);
+      if (fallback) {
+        return serveMediaBuffer(fallback.buffer, fallback.mime, request);
       }
-    );
 
-    if (!evoRes.ok) {
-      const errText = await evoRes.text();
-      console.error('[gateway-media] Evolution API media error:', evoRes.status, errText);
       return NextResponse.json(
         { error: `Evolution API media decryption failed: ${errText.slice(0, 100)}` },
-        { status: evoRes.status }
+        { status: evoRes?.status || 502 }
       );
     }
 
@@ -149,6 +202,10 @@ export async function GET(
     const base64Str = evoData?.base64;
 
     if (!base64Str) {
+      const fallback = getThumbnailBuffer(msg);
+      if (fallback) {
+        return serveMediaBuffer(fallback.buffer, fallback.mime, request);
+      }
       return NextResponse.json({ error: 'No base64 media returned by gateway' }, { status: 404 });
     }
 
@@ -165,6 +222,12 @@ export async function GET(
     return serveMediaBuffer(buffer, mime, request);
   } catch (err: any) {
     console.error('[gateway-media] Exception:', err);
+    if (loadedMsg) {
+      const fallback = getThumbnailBuffer(loadedMsg);
+      if (fallback) {
+        return serveMediaBuffer(fallback.buffer, fallback.mime, request);
+      }
+    }
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

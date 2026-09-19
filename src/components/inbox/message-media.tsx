@@ -32,7 +32,7 @@ import { resolveDisplayMediaUrl } from "@/lib/media/blob-cache";
 type Translator = ReturnType<typeof useTranslations>;
 
 /** Inline media size cap, shared so the four bubbles can't drift apart. */
-const MEDIA_BOX = "max-h-64 max-w-full sm:max-w-60";
+const MEDIA_BOX = "max-h-72 w-full max-w-[240px] sm:max-w-[280px]";
 
 export function MediaUnavailable({
   label,
@@ -42,9 +42,9 @@ export function MediaUnavailable({
   t: Translator;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-      <ImageOff className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span>{t("unavailable", { label })}</span>
+    <div className="flex w-[220px] sm:w-[260px] max-w-full items-center gap-2.5 rounded-xl bg-black/15 dark:bg-black/30 px-3.5 py-3 text-xs text-muted-foreground">
+      <ImageOff className="h-5 w-5 shrink-0 text-muted-foreground/80" />
+      <span className="truncate">{t("unavailable", { label })}</span>
     </div>
   );
 }
@@ -106,7 +106,7 @@ function MediaActionButton({
 
 function MediaPlaceholder({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-40 w-full max-w-60 items-center justify-center rounded-lg bg-muted">
+    <div className="flex h-48 w-[240px] sm:w-[280px] max-w-full items-center justify-center rounded-xl bg-black/15 dark:bg-black/30 text-muted-foreground">
       {children}
     </div>
   );
@@ -131,7 +131,10 @@ export function MediaImageBubble({
   if (status === "error" || broken) {
     return (
       <MediaPlaceholder>
-        <ImageOff className="h-8 w-8 text-muted-foreground" />
+        <div className="flex flex-col items-center gap-1.5 p-3 text-center">
+          <ImageOff className="h-7 w-7 text-muted-foreground/70" />
+          <span className="text-[11px] text-muted-foreground/80">{t("unavailable", { label: t("photo") })}</span>
+        </div>
       </MediaPlaceholder>
     );
   }
@@ -139,7 +142,10 @@ export function MediaImageBubble({
   if (status !== "ready" || !src) {
     return (
       <MediaPlaceholder>
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-[11px] text-muted-foreground/70">Loading photo...</span>
+        </div>
       </MediaPlaceholder>
     );
   }
@@ -149,19 +155,19 @@ export function MediaImageBubble({
     <img
       src={src}
       alt={t("imageAlt")}
-      className={cn(MEDIA_BOX, "rounded-lg object-contain")}
+      className="block h-auto max-h-[360px] min-h-[140px] w-full rounded-xl object-cover transition-transform duration-150 active:scale-[0.99]"
       onError={() => setBroken(true)}
     />
   );
 
   return (
-    <div className="group/media relative w-fit">
+    <div className="group/media relative w-[240px] sm:w-[280px] max-w-full overflow-hidden rounded-xl bg-black/10">
       {onOpen ? (
         <button
           type="button"
           onClick={onOpen}
           aria-label={t("viewImage")}
-          className="block cursor-zoom-in rounded-lg outline-none ring-offset-2 ring-offset-transparent focus-visible:ring-2 focus-visible:ring-ring"
+          className="block w-full cursor-zoom-in rounded-xl outline-none ring-offset-2 ring-offset-transparent focus-visible:ring-2 focus-visible:ring-ring"
         >
           {image}
         </button>

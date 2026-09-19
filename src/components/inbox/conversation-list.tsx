@@ -392,6 +392,25 @@ export function ConversationList({
     return scoped.length;
   }, [conversations, selectedSalesMemberId]);
 
+  // Count direct chats so the tab can show a badge
+  const directCount = useMemo(() => {
+    let scoped = conversations.filter((c) => !isGroupConversation(c));
+
+    if (selectedSalesMemberId === "unassigned") {
+      scoped = scoped.filter((c) => !c.assigned_sales_member_id);
+    } else if (
+      selectedSalesMemberId &&
+      selectedSalesMemberId !== "all"
+    ) {
+      scoped = scoped.filter(
+        (c) =>
+          c.assigned_sales_member_id === selectedSalesMemberId
+      );
+    }
+
+    return scoped.length;
+  }, [conversations, selectedSalesMemberId]);
+
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
@@ -544,7 +563,7 @@ export function ConversationList({
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; proportional width on tablet, desktop and 4K ultrawide.
-    <div className="flex h-full w-full flex-col border-r border-border bg-card md:w-72 lg:w-80 xl:w-96 2xl:w-[400px] shrink-0">
+    <div className="flex h-full w-full max-w-full min-w-0 flex-col border-r border-border bg-card md:w-72 lg:w-80 xl:w-96 2xl:w-[400px] md:shrink-0 overflow-hidden">
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-border p-3">
         <div className="relative">
@@ -712,32 +731,53 @@ export function ConversationList({
       </div>
 
       {/* ── Chats / Groups tab bar ── */}
-      <div className="flex border-t border-border">
+      <div className="grid grid-cols-2 w-full border-t border-b border-border bg-muted/20 shrink-0">
         <button
+          type="button"
           onClick={() => setChatTab("direct")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
+            "flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-all relative cursor-pointer",
             chatTab === "direct"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted-foreground hover:text-foreground"
+              ? "text-primary border-b-2 border-primary bg-background/50"
+              : "text-muted-foreground hover:text-foreground border-b-2 border-transparent hover:bg-muted/40"
           )}
         >
-          <MessageCircle className="h-3.5 w-3.5" />
-          {t("tabChats")}
+          <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{t("tabChats")}</span>
+          {directCount > 0 && (
+            <span
+              className={cn(
+                "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold",
+                chatTab === "direct"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {directCount}
+            </span>
+          )}
         </button>
         <button
+          type="button"
           onClick={() => setChatTab("groups")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 py-1.5 text-xs font-medium transition-colors",
+            "flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-all relative cursor-pointer",
             chatTab === "groups"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted-foreground hover:text-foreground"
+              ? "text-primary border-b-2 border-primary bg-background/50"
+              : "text-muted-foreground hover:text-foreground border-b-2 border-transparent hover:bg-muted/40"
           )}
         >
-          <Users className="h-3.5 w-3.5" />
-          {t("tabGroups")}
+          <Users className="h-3.5 w-3.5 shrink-0" />
+          <span>{t("tabGroups")}</span>
           {groupCount > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-muted px-1 text-[10px] font-bold">
+            <span
+              className={cn(
+                "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold",
+                chatTab === "groups"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
               {groupCount}
             </span>
           )}
@@ -750,7 +790,7 @@ export function ConversationList({
           <div className="flex items-center gap-2">
             <button
               onClick={handleSelectAll}
-              className="flex h-4 w-4 items-center justify-center rounded border border-primary text-primary bg-primary transition-colors hover:bg-primary/90"
+              className="flex h-4 w-4 items-center justify-center rounded border border-primary text-primary bg-primary transition-colors hover:bg-primary/90 cursor-pointer"
             >
               {selectedIds.size === filtered.length && filtered.length > 0 ? (
                 <svg width="10" height="10" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary-foreground"><path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -765,7 +805,7 @@ export function ConversationList({
           <button
             onClick={handleDeleteSelected}
             disabled={isDeleting}
-            className="flex items-center gap-1 rounded bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1 rounded bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-500 hover:bg-red-500/20 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
             Delete
@@ -775,15 +815,18 @@ export function ConversationList({
 
       {/* ── Optional "Select All" above list when no selection ── */}
       {selectedIds.size === 0 && filtered.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 shrink-0 bg-muted/20">
+        <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-border/40 shrink-0 bg-muted/20 text-[11px] text-muted-foreground">
           <button
             onClick={handleSelectAll}
-            className="flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 hover:text-foreground transition-colors cursor-pointer"
           >
-            <div className="flex h-4 w-4 items-center justify-center rounded border border-input bg-background">
+            <div className="flex h-3.5 w-3.5 items-center justify-center rounded border border-input bg-background/80 hover:border-primary/60 transition-colors">
             </div>
-            Select All
+            <span>Select All</span>
           </button>
+          <span className="text-[10px] text-muted-foreground/75">
+            {filtered.length} {chatTab === "groups" ? (filtered.length === 1 ? "group" : "groups") : (filtered.length === 1 ? "chat" : "chats")}
+          </span>
         </div>
       )}
 
@@ -793,7 +836,7 @@ export function ConversationList({
           every conversation instead of shrinking to the remaining
           space — the list then overflows and gets clipped by the
           parent's overflow-hidden with no scrollbar (issue #229). */}
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1 w-full max-w-full overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -810,7 +853,7 @@ export function ConversationList({
             )}
           </div>
         ) : (
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full min-w-0 divide-y divide-border/30">
             {filtered.map((conv) => {
               return (
                 <ConversationItem
@@ -902,7 +945,7 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50 cursor-pointer",
+        "group relative flex w-full min-w-0 items-start gap-3 px-3 py-2.5 sm:px-3.5 sm:py-3 text-left transition-colors hover:bg-muted/50 active:bg-muted/70 cursor-pointer",
         isActive && "border-l-2 border-primary bg-muted/70",
         isSelected && "bg-primary/5"
       )}
@@ -927,14 +970,14 @@ function ConversationItem({
 
       {/* Avatar */}
       <div className={cn(
-        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground transition-opacity",
+        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-opacity",
+        isGroup
+          ? "bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/25"
+          : "bg-muted text-foreground",
         (isSelected || isHovered) ? "opacity-0" : "opacity-100"
       )}>
         {isGroup ? (
-          /* Group avatar — multi-user icon */
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600/20">
-            <Users className="h-5 w-5 text-teal-500" />
-          </div>
+          <Users className="h-5 w-5" />
         ) : contact?.avatar_url && !avatarError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -950,22 +993,25 @@ function ConversationItem({
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-1.5">
-          <span className="truncate text-sm font-medium text-foreground flex items-center gap-1.5 flex-wrap">
-            <span className="truncate">{displayName}</span>
+        {/* Title row with badges and timestamp */}
+        <div className="flex items-center justify-between gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <span className="truncate text-sm font-semibold text-foreground">
+              {displayName}
+            </span>
             {isGroup && (
-              <span className="inline-flex items-center gap-0.5 rounded bg-teal-500/15 px-1.5 py-0.5 text-[9px] font-bold text-teal-500 border border-teal-500/30 shrink-0">
+              <span className="inline-flex items-center gap-0.5 rounded bg-teal-500/15 px-1.5 py-0.5 text-[9px] font-bold text-teal-600 dark:text-teal-400 border border-teal-500/30 shrink-0">
                 <Users className="h-2.5 w-2.5" />
                 {t("groupBadge")}
               </span>
             )}
             {conversation.is_unanswered && (
-              <span className="inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-500 border border-amber-500/30 shrink-0">
+              <span className="inline-flex items-center rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
                 Unanswered
               </span>
             )}
             {conversation.is_overdue && (
-              <span className="inline-flex items-center rounded bg-rose-500/15 px-1.5 py-0.5 text-[9px] font-bold text-rose-500 border border-rose-500/30 shrink-0">
+              <span className="inline-flex items-center rounded bg-rose-500/15 px-1.5 py-0.5 text-[9px] font-bold text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
                 Overdue
               </span>
             )}
@@ -974,14 +1020,16 @@ function ConversationItem({
                 Spam
               </span>
             )}
+          </div>
+          <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap pl-1">
+            {timeAgo}
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
 
         {/* Assigned Rep & Division badge */}
         {salesMember && (
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="font-semibold text-primary truncate max-w-[130px]">
+          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground min-w-0">
+            <span className="font-medium text-primary truncate max-w-[140px] sm:max-w-none">
               Rep: {salesMember.name}
             </span>
             {salesMember.division && (
@@ -992,21 +1040,22 @@ function ConversationItem({
           </div>
         )}
 
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
+        {/* Message preview and unread status */}
+        <div className="mt-1 flex items-center justify-between gap-2 min-w-0">
+          <p className="truncate text-xs text-muted-foreground flex-1 min-w-0">
             {conversation.last_message_text ||
               (conversation as any).last_message_preview ||
               t("noMessagesYet")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-xs">
                 {conversation.unread_count}
               </span>
             )}
             <span
               className={cn(
-                "h-2 w-2 rounded-full",
+                "h-2 w-2 rounded-full shrink-0",
                 STATUS_COLORS[conversation.status]
               )}
               title={conversation.status}
