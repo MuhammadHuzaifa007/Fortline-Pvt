@@ -23,7 +23,7 @@ export async function logFortlineAuditEvent(
   try {
     await db.from('fortline_audit_log').insert({
       account_id: event.accountId || null,
-      actor_email: event.actor.email || 'ceo@fortline.com',
+      actor_email: event.actor.email || 'ceo@fortline.net',
       actor_role: event.actor.role || 'ceo',
       action: event.action,
       entity_type: event.entityType,

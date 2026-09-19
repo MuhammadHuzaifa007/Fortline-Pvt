@@ -29,7 +29,7 @@ export function FortlineNotificationsSettings() {
     alert_rep_inactivity: false,
     daily_executive_digest: true,
     ceo_whatsapp_number: '+92 300 1234567',
-    ceo_alert_email: 'ceo@fortline.com',
+    ceo_alert_email: 'ceo@fortline.net',
     quiet_hours_start: '22:00',
     quiet_hours_end: '08:00',
   })
@@ -181,7 +181,7 @@ export function FortlineNotificationsSettings() {
                 type="email"
                 value={rules.ceo_alert_email}
                 onChange={(e) => setRules({ ...rules, ceo_alert_email: e.target.value })}
-                placeholder="ceo@fortline.com"
+                placeholder="ceo@fortline.net"
               />
               <p className="text-[11px] text-muted-foreground">Receives daily digests and system outage reports</p>
             </div>

@@ -121,7 +121,7 @@ function LoginPageInner() {
               <Input
                 id="email"
                 type="email"
-                placeholder="ceo@fortline.com"
+                placeholder="ceo@fortline.net"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

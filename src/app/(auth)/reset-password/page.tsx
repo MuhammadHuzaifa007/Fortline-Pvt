@@ -52,6 +52,21 @@ function ResetPasswordPageInner() {
         return;
       }
 
+      const tokenHash = searchParams.get("token_hash");
+      if (tokenHash) {
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (!verifyErr) {
+          if (isMounted) {
+            setValidSession(true);
+            setSessionChecking(false);
+          }
+          return;
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (isMounted) {
         setValidSession(Boolean(user));
@@ -62,7 +77,7 @@ function ResetPasswordPageInner() {
     return () => {
       isMounted = false;
     };
-  }, [supabase, queryError]);
+  }, [supabase, queryError, searchParams]);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();

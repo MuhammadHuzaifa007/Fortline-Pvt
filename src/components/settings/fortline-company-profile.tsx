@@ -26,7 +26,7 @@ export function FortlineCompanyProfile() {
     legal_name: 'Fortline Pvt Ltd',
     business_type: 'Enterprise IT Infrastructure & Hardware Solutions',
     headquarters_address: 'Main Executive Tower, Technology Park',
-    contact_email: 'ceo@fortline.com',
+    contact_email: 'ceo@fortline.net',
     contact_phone: '+92 300 1234567',
     timezone: 'Asia/Karachi',
     default_currency: 'PKR',

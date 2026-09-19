@@ -154,7 +154,7 @@ export function FortlineKpiSettings() {
               type="email"
               value={escalationEmail}
               onChange={(e) => setEscalationEmail(e.target.value)}
-              placeholder="ceo@fortline.com"
+              placeholder="ceo@fortline.net"
               className="bg-muted border-border"
             />
             <p className="text-[11px] text-muted-foreground">
