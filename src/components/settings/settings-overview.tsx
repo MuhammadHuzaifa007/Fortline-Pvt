@@ -37,9 +37,9 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
   const currencyObj = CURRENCIES.find((c) => c.code === currencyCode);
   const currencyLabel = currencyObj?.label || 'Pakistani Rupee';
 
-  const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Muhammad Huzaifa Zeb';
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Karim Rafique';
   const email = user?.email || profile?.email || 'ceo@fortline.net';
-  const initial = (displayName.trim().charAt(0) || 'M').toUpperCase();
+  const initial = (displayName.trim().charAt(0) || 'K').toUpperCase();
   const roleDisplay = accountRole ? accountRole.charAt(0).toUpperCase() + accountRole.slice(1) : 'Owner';
 
   useEffect(() => {
