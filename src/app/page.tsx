@@ -34,11 +34,11 @@ export default function HomePage() {
               F
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-base tracking-tight text-white flex items-center gap-2">
-                Fortline-Pvt <span className="text-emerald-400 text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">Executive CRM</span>
+              <span className="font-extrabold text-base tracking-tight text-white">
+                Fortline-Pvt
               </span>
               <span className="text-[10px] text-gray-400 font-medium leading-none">
-                Enterprise IT Infrastructure Sales Operations
+                Fortline Sales CRM
               </span>
             </div>
           </div>
@@ -47,11 +47,6 @@ export default function HomePage() {
             <Link href="/login">
               <Button variant="ghost" className="text-gray-300 hover:text-white hover:bg-white/5 text-xs font-medium">
                 Sign In
-              </Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/30 rounded-lg px-4 h-9 transition-all">
-                Open Command Center <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
               </Button>
             </Link>
           </div>
