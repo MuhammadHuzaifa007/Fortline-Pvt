@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
     const fullName = profile?.full_name || '';
 
-    // 2. Find matching sales member (prioritizing Huzaifa for CEO/owner)
+    // 2. Find matching sales member (prioritizing Karim for CEO/owner)
     let targetMemberId = body.salesMemberId || null;
 
     if (!targetMemberId) {
@@ -51,7 +51,9 @@ export async function POST(request: Request) {
         .select('id, name')
         .eq('account_id', ctx.accountId);
 
-      if (fullName.toLowerCase().includes('huzaifa')) {
+      if (fullName.toLowerCase().includes('karim')) {
+        query = query.ilike('name', '%Karim%');
+      } else if (fullName.toLowerCase().includes('huzaifa')) {
         query = query.ilike('name', '%Huzaifa%');
       } else if (fullName) {
         const parts: string[] = fullName.split(/\s+/).filter(Boolean);
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
           parts[0];
         query = query.ilike('name', `%${specificPart}%`);
       } else {
-        query = query.ilike('name', '%Huzaifa%');
+        query = query.ilike('name', '%Karim%');
       }
 
       const { data: matchedReps } = await query.limit(1);
