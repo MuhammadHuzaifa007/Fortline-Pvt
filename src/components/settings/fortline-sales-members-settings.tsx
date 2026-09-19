@@ -459,7 +459,11 @@ export function FortlineSalesMembersSettings() {
                     </div>
                   </td>
                   <td className="py-3 px-3 font-mono text-[10px] text-muted-foreground">
-                    {m.channel_id || '—'}
+                    {(
+                      m as FortlineSalesMember & {
+                        gateway_instance_id?: string | null
+                      }
+                    ).gateway_instance_id || '—'}
                   </td>
                   <td className="py-3 px-3">
                     {/* WhatsApp Gateway connection status — the CEO's view of whether

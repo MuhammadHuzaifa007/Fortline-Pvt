@@ -11,20 +11,123 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
 
     const division = searchParams.get('division') || undefined;
-    const presence = (searchParams.get('presence') as PresenceStatus) || undefined;
+    const presence =
+      (searchParams.get('presence') as PresenceStatus) || undefined;
     const search = searchParams.get('search') || undefined;
-    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : 50;
-    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!, 10) : 0;
+    const limit = searchParams.get('limit')
+      ? parseInt(searchParams.get('limit')!, 10)
+      : 50;
+    const offset = searchParams.get('offset')
+      ? parseInt(searchParams.get('offset')!, 10)
+      : 0;
 
-    const result = await loadSalesMembers(ctx.supabase, ctx.accountId, {
-      division,
-      presence,
-      search,
-      limit,
-      offset,
-    });
+    const result = await loadSalesMembers(
+      ctx.supabase,
+      ctx.accountId,
+      {
+        division,
+        presence,
+        search,
+        limit,
+        offset,
+      },
+    );
 
-    return NextResponse.json(result);
+    const resultObject =
+      result && typeof result === 'object'
+        ? (result as Record<string, unknown>)
+        : {};
+
+    const members = Array.isArray(resultObject.members)
+      ? (resultObject.members as Array<Record<string, unknown>>)
+      : Array.isArray(resultObject.salesMembers)
+        ? (resultObject.salesMembers as Array<Record<string, unknown>>)
+        : [];
+
+    if (members.length > 0) {
+      const memberIds = members
+        .map((member) =>
+          typeof member.id === 'string' ? member.id : '',
+        )
+        .filter(Boolean);
+
+      if (memberIds.length > 0) {
+        const { data: channels, error: channelsError } =
+          await ctx.supabase
+            .from('fortline_channels')
+            .select(
+              'id, sales_member_id, gateway_instance_id, connection_status, channel_type',
+            )
+            .eq('account_id', ctx.accountId)
+            .in('sales_member_id', memberIds);
+
+        if (channelsError) {
+          console.error(
+            '[SALES MEMBERS] Failed to load WhatsApp gateway IDs:',
+            channelsError,
+          );
+        } else {
+          const channelByMemberId = new Map<
+            string,
+            {
+              id: string;
+              gateway_instance_id: string | null;
+              connection_status: string | null;
+              channel_type: string | null;
+            }
+          >();
+
+          for (const channel of channels || []) {
+            if (
+              typeof channel.sales_member_id === 'string' &&
+              channel.sales_member_id
+            ) {
+              channelByMemberId.set(channel.sales_member_id, {
+                id: channel.id,
+                gateway_instance_id:
+                  channel.gateway_instance_id || null,
+                connection_status:
+                  channel.connection_status || null,
+                channel_type: channel.channel_type || null,
+              });
+            }
+          }
+
+          const enrichedMembers = members.map((member) => {
+            const memberId =
+              typeof member.id === 'string' ? member.id : '';
+
+            const channel = memberId
+              ? channelByMemberId.get(memberId)
+              : undefined;
+
+            return {
+              ...member,
+              gateway_instance_id:
+                channel?.gateway_instance_id || null,
+              whatsapp_channel_id:
+                channel?.id || null,
+              channel_type:
+                channel?.channel_type || null,
+              channel_connection_status:
+                channel?.connection_status ||
+                member.channel_connection_status ||
+                null,
+            };
+          });
+
+          if (Array.isArray(resultObject.members)) {
+            resultObject.members = enrichedMembers;
+          }
+
+          if (Array.isArray(resultObject.salesMembers)) {
+            resultObject.salesMembers = enrichedMembers;
+          }
+        }
+      }
+    }
+
+    return NextResponse.json(resultObject);
   } catch (err) {
     return toErrorResponse(err);
   }
