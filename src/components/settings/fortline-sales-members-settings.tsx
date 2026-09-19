@@ -17,6 +17,7 @@ import {
   QrCode,
   Wifi,
   WifiOff,
+  Radio,
   Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -509,10 +510,28 @@ export function FortlineSalesMembersSettings() {
                         Connected
                       </span>
                     ) : m.channel_connection_status === 'disconnected' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                        <WifiOff className="size-3" />
-                        Disconnected
-                      </span>
+                      m.channel_disconnect_classification === 'confirmed_logout' ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/15 text-rose-500 border border-rose-500/30"
+                          title="Device explicitly unlinked from WhatsApp (Status 401: Logged Out). Re-pair required."
+                        >
+                          <WifiOff className="size-3" />
+                          Unlinked (401)
+                        </span>
+                      ) : m.channel_disconnect_classification === 'temporary_timeout' || m.channel_last_disconnect_code === 408 ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-500 border border-amber-500/30"
+                          title="Temporary socket timeout. Session credentials valid; gateway retrying automatically."
+                        >
+                          <Radio className="size-3 animate-pulse" />
+                          Timeout (408 Retrying)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                          <WifiOff className="size-3" />
+                          Disconnected
+                        </span>
+                      )
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                         <Clock className="size-3" />

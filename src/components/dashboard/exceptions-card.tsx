@@ -42,6 +42,7 @@ export function ExceptionsCard({ exceptions, loading }: ExceptionsCardProps) {
       case 'unanswered_lead':
         return AlertOctagon
       case 'channel_disconnected':
+      case 'channel_warning':
         return Radio
       default:
         return AlertTriangle

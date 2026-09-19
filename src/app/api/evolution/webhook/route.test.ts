@@ -50,6 +50,13 @@ function createMockSupabase(state: MockDbState) {
           }
           return chain;
         }),
+        in: vi.fn((col: string, val: any[]) => {
+          filters.push({ col, val, isIn: true } as any);
+          return chain;
+        }),
+        limit: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        is: vi.fn(() => chain),
         update: vi.fn((payload: any) => {
           updatePayload = payload;
           return chain;
@@ -85,11 +92,28 @@ function createMockSupabase(state: MockDbState) {
           else if (table === 'conversations') collection = state.conversations;
 
           const match = collection.find((item) =>
-            filters.every((f) => item[f.col] === f.val)
+            filters.every((f: any) => {
+              if (f.isIn) return Array.isArray(f.val) && f.val.includes(item[f.col]);
+              return item[f.col] === f.val;
+            })
           );
           return { data: match ? { ...match } : null, error: null };
         }),
-        then: (resolve: (val: any) => any) => resolve({ data: null, error: null }),
+        then: (resolve: (val: any) => any) => {
+          let collection: any[] = [];
+          if (table === 'contacts') collection = state.contacts;
+          else if (table === 'conversations') collection = state.conversations;
+          else if (table === 'fortline_channels') collection = state.channels;
+          else if (table === 'messages') collection = state.messages;
+
+          const matches = collection.filter((item) =>
+            filters.every((f: any) => {
+              if (f.isIn) return Array.isArray(f.val) && f.val.includes(item[f.col]);
+              return item[f.col] === f.val;
+            })
+          );
+          return resolve({ data: matches, error: null });
+        },
       };
 
       return chain;
@@ -171,14 +195,14 @@ describe('/api/evolution/webhook', () => {
       expect(warnSpy).toHaveBeenCalled();
     });
 
-    it('ignores unhandled events like connection.update', async () => {
+    it('ignores unhandled events like chats.upsert', async () => {
       const req = new NextRequest('http://localhost:3000/api/evolution/webhook', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          event: 'connection.update',
+          event: 'chats.upsert',
           instance: 'fortline_bilal',
-          data: { state: 'open' },
+          data: {},
         }),
       }) as any;
 

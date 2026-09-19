@@ -13,6 +13,7 @@ import { FortlineKpiGrid } from '@/components/dashboard/fortline-kpi-grid'
 import { SalesMembersTable } from '@/components/dashboard/sales-members-table'
 import { ExceptionsCard } from '@/components/dashboard/exceptions-card'
 import { ExecutiveActivityStream } from '@/components/dashboard/executive-activity-stream'
+import { DashboardAlertBanner } from '@/components/dashboard/dashboard-alert-banner'
 import type {
   FortlineDashboardResponse,
   FortlineDashboardKPIs,
@@ -151,6 +152,9 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Critical Executive Alert Banner (401 Disconnects vs 408 Network Timeouts) */}
+      <DashboardAlertBanner salesMembers={data?.salesMembers || []} />
 
       {/* 14 Executive KPI Cards Grid */}
       <FortlineKpiGrid

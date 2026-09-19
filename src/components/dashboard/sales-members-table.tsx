@@ -309,7 +309,25 @@ export function SalesMembersTable({
                         </div>
                         {/* Gateway session sub-badge */}
                         {rep.channel_connection_status === 'disconnected' && (
-                          <span className="text-[9px] text-rose-500 font-medium">⚠ Session disconnected</span>
+                          rep.channel_disconnect_classification === 'confirmed_logout' ? (
+                            <span
+                              className="text-[9px] text-rose-500 font-semibold flex items-center gap-1"
+                              title="Device explicitly unlinked or logged out (Status 401). Re-pair required."
+                            >
+                              🚨 Unlinked (401 Logged Out)
+                            </span>
+                          ) : rep.channel_disconnect_classification === 'temporary_timeout' || rep.channel_last_disconnect_code === 408 ? (
+                            <span
+                              className="text-[9px] text-amber-500 font-medium flex items-center gap-1"
+                              title="Temporary socket timeout. Credentials valid; gateway retrying automatically."
+                            >
+                              ⚡ Network Timeout (408 Retrying)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-rose-400 font-medium">
+                              ⚠ {rep.channel_last_disconnect_reason || 'Session disconnected'}
+                            </span>
+                          )
                         )}
                         {rep.channel_connection_status === 'connected' && isOffline && (
                           <span className="text-[9px] text-amber-500 font-medium">Session alive, inactive</span>

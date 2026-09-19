@@ -371,6 +371,365 @@ function isPlaceholderContactName(
   return false;
 }
 
+export type ConnectionClassification =
+  | 'confirmed_logout'
+  | 'temporary_timeout'
+  | 'connection_replaced'
+  | 'bad_session'
+  | 'unknown';
+
+export interface ClassifiedConnectionEvent {
+  state: string;
+  statusCode: number | null;
+  statusReasonText: string;
+  classification: ConnectionClassification | 'connected' | 'connecting';
+  isManualLogout: boolean;
+  label: string;
+  description: string;
+  severity: 'critical' | 'warning' | 'info';
+}
+
+export function classifyConnectionEvent(
+  rawEvent: string,
+  dataRecord: Record<string, unknown> | null | undefined
+): ClassifiedConnectionEvent {
+  const data = dataRecord || {};
+  const state = typeof data.state === 'string' ? data.state.toLowerCase().trim() : '';
+  const rawReason = data.statusReason ?? data.reason ?? data.message ?? '';
+  const reasonText =
+    typeof rawReason === 'string'
+      ? rawReason.trim()
+      : typeof rawReason === 'number'
+      ? `Status ${rawReason}`
+      : '';
+  const rawCode = data.statusCode ?? data.statusReason ?? data.code;
+  const parsedCode =
+    typeof rawCode === 'number' ? rawCode : parseInt(String(rawCode), 10);
+  const statusCode = !isNaN(parsedCode) ? parsedCode : null;
+
+  const rawReasonLower = `${reasonText} ${typeof data.error === 'string' ? data.error : ''}`.toLowerCase();
+  const normalizedReason = rawReasonLower.replace(/[_\-]+/g, ' ').trim();
+
+  // 1. Connected / Open state
+  if (
+    state === 'open' ||
+    statusCode === 200 ||
+    normalizedReason.includes('connected') ||
+    normalizedReason.includes('open')
+  ) {
+    return {
+      state: 'open',
+      statusCode: statusCode ?? 200,
+      statusReasonText: reasonText || 'Connection active',
+      classification: 'connected',
+      isManualLogout: false,
+      label: 'Connected',
+      description: 'WhatsApp gateway socket connected and authenticated.',
+      severity: 'info',
+    };
+  }
+
+  // 2. Connecting state
+  if (state === 'connecting') {
+    return {
+      state: 'connecting',
+      statusCode: statusCode,
+      statusReasonText: reasonText || 'Connecting',
+      classification: 'connecting',
+      isManualLogout: false,
+      label: 'Connecting...',
+      description: 'Gateway is negotiating connection with WhatsApp servers.',
+      severity: 'info',
+    };
+  }
+
+  // 3. Disconnected / Close state - strict classification
+  // 3A. Confirmed Logout / Session Invalidation (Status 401 / logged_out / unauthorized)
+  if (
+    statusCode === 401 ||
+    normalizedReason.includes('logout') ||
+    normalizedReason.includes('logged out') ||
+    normalizedReason.includes('unauthorized') ||
+    normalizedReason.includes('unlinked')
+  ) {
+    return {
+      state: 'close',
+      statusCode: 401,
+      statusReasonText: reasonText || 'Logged out (401)',
+      classification: 'confirmed_logout',
+      isManualLogout: true,
+      label: 'Confirmed Session Invalidation (Device Unlinked / Logged Out)',
+      description:
+        'WhatsApp session was explicitly terminated or unlinked on the mobile device (Status 401: Logged Out). Credentials revoked. Re-scanning QR code required.',
+      severity: 'critical',
+    };
+  }
+
+  // 3B. Temporary Socket / Network Timeout (Status 408 / connection_lost / timed out)
+  // Per directive: Do NOT assume phone is offline, do NOT label as manual logout.
+  if (
+    statusCode === 408 ||
+    normalizedReason.includes('timeout') ||
+    normalizedReason.includes('connection lost') ||
+    normalizedReason.includes('connectionlost') ||
+    normalizedReason.includes('timed out') ||
+    normalizedReason.includes('socket closed')
+  ) {
+    return {
+      state: 'close',
+      statusCode: 408,
+      statusReasonText: reasonText || 'Connection lost / timeout (408)',
+      classification: 'temporary_timeout',
+      isManualLogout: false,
+      label: 'Temporary Connection Interruption (Socket/Network Timeout)',
+      description:
+        'Temporary socket/network timeout detected (Status 408: Connection Lost). Session credentials remain active; gateway is attempting automatic reconnection. This is NOT a manual logout.',
+      severity: 'warning',
+    };
+  }
+
+  // 3C. Session Replaced (Status 440)
+  if (
+    statusCode === 440 ||
+    normalizedReason.includes('replaced') ||
+    normalizedReason.includes('conflict')
+  ) {
+    return {
+      state: 'close',
+      statusCode: 440,
+      statusReasonText: reasonText || 'Connection replaced (440)',
+      classification: 'connection_replaced',
+      isManualLogout: false,
+      label: 'Connection Replaced (Session Active Elsewhere)',
+      description:
+        'Another session was opened for this phone instance (Status 440: Connection Replaced).',
+      severity: 'warning',
+    };
+  }
+
+  // 3D. Bad Session State (Status 500)
+  if (
+    statusCode === 500 ||
+    normalizedReason.includes('bad session') ||
+    normalizedReason.includes('badsess')
+  ) {
+    return {
+      state: 'close',
+      statusCode: 500,
+      statusReasonText: reasonText || 'Bad session (500)',
+      classification: 'bad_session',
+      isManualLogout: false,
+      label: 'Corrupted Session State',
+      description:
+        'Internal WhatsApp session data is corrupt or unrecoverable (Status 500). Re-pairing required.',
+      severity: 'critical',
+    };
+  }
+
+  // 3E. Socket Restart Requested (Status 515)
+  if (statusCode === 515 || normalizedReason.includes('restart')) {
+    return {
+      state: 'close',
+      statusCode: 515,
+      statusReasonText: reasonText || 'Restart required (515)',
+      classification: 'temporary_timeout',
+      isManualLogout: false,
+      label: 'Gateway Socket Restarting',
+      description:
+        'WhatsApp gateway requested a clean socket restart (Status 515). Reconnecting automatically.',
+      severity: 'warning',
+    };
+  }
+
+  // 3F. Unknown / Generic Socket Close
+  return {
+    state: state || 'close',
+    statusCode: statusCode,
+    statusReasonText: reasonText || 'Connection closed',
+    classification: 'unknown',
+    isManualLogout: false,
+    label: 'Connection Interrupted',
+    description: `Connection closed by gateway: ${reasonText || 'Unknown socket closure'}.`,
+    severity: 'warning',
+  };
+}
+
+async function handleConnectionUpdate(
+  admin: ReturnType<typeof supabaseAdmin>,
+  channel: any,
+  payload: Record<string, unknown>,
+  rawEvent: string
+) {
+  const nowIso = new Date().toISOString();
+  const dataRecord =
+    extractDataRecord(payload) ||
+    (payload.data as Record<string, unknown>) ||
+    {};
+  const classified = classifyConnectionEvent(rawEvent, dataRecord);
+
+  const existingMeta =
+    (channel.gateway_metadata as Record<string, unknown>) || {};
+  const updatedMeta = {
+    ...existingMeta,
+    last_event: rawEvent,
+    last_event_at: nowIso,
+    last_disconnect_reason: classified.statusReasonText,
+    last_disconnect_code: classified.statusCode,
+    disconnect_classification:
+      classified.classification === 'connected'
+        ? null
+        : classified.classification,
+    disconnect_label: classified.label,
+    disconnect_description: classified.description,
+    is_manual_logout: classified.isManualLogout,
+    last_raw_event_data: dataRecord,
+  };
+
+  const repName = channel.sales_member?.name || null;
+
+  if (classified.classification === 'connected') {
+    // 1. Restore channel to connected
+    await admin
+      .from('fortline_channels')
+      .update({
+        connection_status: 'connected',
+        pairing_state: 'connected',
+        last_successful_event_at: nowIso,
+        gateway_metadata: updatedMeta,
+        updated_at: nowIso,
+      })
+      .eq('id', channel.id);
+
+    // 2. Auto-resolve any unresolved notifications for this channel
+    try {
+      await admin
+        .from('notifications')
+        .update({ resolved_at: nowIso, read: true })
+        .eq('entity_id', channel.id)
+        .is('resolved_at', null);
+    } catch (notifErr) {
+      console.warn(
+        '[EVOLUTION WEBHOOK] Failed to resolve old notifications:',
+        notifErr
+      );
+    }
+
+    // 3. Audit log
+    try {
+      await admin.from('fortline_audit_log').insert({
+        account_id: channel.account_id,
+        actor_email: 'gateway@fortline.net',
+        actor_role: 'system',
+        action: 'channel_connection_restored',
+        entity_type: 'channel',
+        entity_id: channel.id,
+        details: {
+          gateway_instance_id: channel.gateway_instance_id,
+          sales_member_id: channel.sales_member_id,
+          sales_member_name: repName,
+          status_code: classified.statusCode,
+          reason: classified.statusReasonText,
+        },
+        created_at: nowIso,
+      });
+    } catch {}
+
+    return;
+  }
+
+  // Disconnected / Interrupted
+  const isConfirmedLogout = classified.classification === 'confirmed_logout';
+
+  // 1. Update fortline_channels
+  const channelUpdates: Record<string, unknown> = {
+    connection_status: 'disconnected',
+    last_delivery_error: classified.description,
+    gateway_metadata: updatedMeta,
+    updated_at: nowIso,
+  };
+
+  // Only reset pairing_state to disconnected if it was a CONFIRMED LOGOUT or BAD SESSION!
+  // If it was a temporary 408 timeout, do NOT wipe pairing_state, keep credentials alive!
+  if (isConfirmedLogout || classified.classification === 'bad_session') {
+    channelUpdates.pairing_state = 'disconnected';
+  }
+
+  await admin
+    .from('fortline_channels')
+    .update(channelUpdates)
+    .eq('id', channel.id);
+
+  // 2. Audit log entry for CEO accountability
+  try {
+    await admin.from('fortline_audit_log').insert({
+      account_id: channel.account_id,
+      actor_email: 'gateway@fortline.net',
+      actor_role: 'system',
+      action: isConfirmedLogout
+        ? 'channel_session_invalidated'
+        : 'channel_connection_interrupted',
+      entity_type: 'channel',
+      entity_id: channel.id,
+      details: {
+        gateway_instance_id: channel.gateway_instance_id,
+        sales_member_id: channel.sales_member_id,
+        sales_member_name: repName,
+        phone_number_id: channel.phone_number_id,
+        display_phone_number: channel.display_phone_number,
+        classification: classified.classification,
+        is_manual_logout: classified.isManualLogout,
+        status_code: classified.statusCode,
+        status_reason: classified.statusReasonText,
+        label: classified.label,
+        description: classified.description,
+        raw_event: rawEvent,
+        raw_data: dataRecord,
+      },
+      created_at: nowIso,
+    });
+  } catch (auditErr) {
+    console.error(
+      '[EVOLUTION WEBHOOK] Failed to write audit log for connection event:',
+      auditErr
+    );
+  }
+
+  // 3. Insert notification for CEO
+  try {
+    const { data: ceoMember } = await admin
+      .from('account_members')
+      .select('user_id')
+      .eq('account_id', channel.account_id)
+      .eq('role', 'owner')
+      .limit(1)
+      .maybeSingle();
+
+    const recipientUserId = ceoMember?.user_id;
+
+    if (recipientUserId) {
+      await admin.from('notifications').insert({
+        account_id: channel.account_id,
+        user_id: recipientUserId,
+        type: isConfirmedLogout ? 'channel_disconnected' : 'channel_warning',
+        title: isConfirmedLogout
+          ? `🚨 WhatsApp Device Unlinked: ${repName || channel.display_phone_number || 'Channel'}`
+          : `⚠️ WhatsApp Connection Interrupted: ${repName || channel.display_phone_number || 'Channel'}`,
+        body: classified.description,
+        severity: classified.severity,
+        entity_type: 'channel',
+        entity_id: channel.id,
+        read: false,
+        created_at: nowIso,
+      });
+    }
+  } catch (notifErr) {
+    console.error(
+      '[EVOLUTION WEBHOOK] Failed to create notification for connection event:',
+      notifErr
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   let payload: Record<string, unknown> | null = null;
 
@@ -393,10 +752,15 @@ export async function POST(request: NextRequest) {
     .toLowerCase()
     .replace(/_/g, '.');
 
-  if (
-    normalizedEvent !== 'messages.upsert' &&
-    normalizedEvent !== 'send.message'
-  ) {
+  const isConnectionEvent =
+    normalizedEvent === 'connection.update' ||
+    normalizedEvent === 'connection_update';
+
+  const isMessageEvent =
+    normalizedEvent === 'messages.upsert' ||
+    normalizedEvent === 'send.message';
+
+  if (!isConnectionEvent && !isMessageEvent) {
     return NextResponse.json(
       {
         ok: true,
@@ -408,9 +772,12 @@ export async function POST(request: NextRequest) {
   }
 
   const instance =
-    typeof payload?.instance === 'string'
-      ? payload.instance.trim()
-      : '';
+    (typeof payload?.instance === 'string' && payload.instance.trim()) ||
+    (typeof (payload?.data as any)?.instance === 'string' &&
+      (payload.data as any).instance.trim()) ||
+    (typeof (payload as any)?.instanceName === 'string' &&
+      (payload as any).instanceName.trim()) ||
+    '';
 
   if (!instance) {
     console.warn('[EVOLUTION WEBHOOK] Missing instance in payload');
@@ -430,7 +797,7 @@ export async function POST(request: NextRequest) {
   const { data: channel, error: channelError } = await admin
     .from('fortline_channels')
     .select(
-      'id, account_id, sales_member_id, phone_number_id'
+      'id, account_id, sales_member_id, phone_number_id, display_phone_number, gateway_instance_id, gateway_metadata, pairing_state, connection_status, sales_member:fortline_sales_members(id, name)'
     )
     .eq('gateway_instance_id', instance)
     .maybeSingle();
@@ -468,6 +835,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (isConnectionEvent) {
+    await handleConnectionUpdate(admin, channel, payload, rawEvent);
+    return NextResponse.json(
+      {
+        ok: true,
+        processed_event: normalizedEvent,
+        instance,
+      },
+      { status: 200 }
+    );
+  }
+
   const dataRecord = extractDataRecord(payload);
   const key = dataRecord?.key as
     | Record<string, unknown>
@@ -483,9 +862,9 @@ export async function POST(request: NextRequest) {
     key
   );
 
-  if (!identity) {
+  if (!identity || identity.isGroup) {
     console.log(
-      '[EVOLUTION WEBHOOK] Ignored unsupported/invalid JID:',
+      '[EVOLUTION WEBHOOK] Ignored unsupported/invalid JID or group:',
       remoteJid || '(empty)'
     );
 

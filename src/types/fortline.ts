@@ -39,6 +39,10 @@ export interface FortlineSalesMember {
   presence_source: PresenceSource;
   /** Live gateway connection status from fortline_channels (populated by loadSalesMembers join) */
   channel_connection_status?: 'connected' | 'disconnected' | null;
+  channel_disconnect_classification?: DisconnectClassification | null;
+  channel_last_disconnect_reason?: string | null;
+  channel_last_disconnect_code?: number | null;
+  channel_last_disconnect_at?: string | null;
   last_activity_at?: string | null;
   last_heartbeat_at?: string | null;
   last_inbound_at?: string | null;
@@ -60,6 +64,13 @@ export interface FortlineSalesMember {
   avg_response_time_seconds?: number;
 }
 
+export type DisconnectClassification =
+  | 'confirmed_logout'
+  | 'temporary_timeout'
+  | 'connection_replaced'
+  | 'bad_session'
+  | 'unknown';
+
 export type FortlineSalesMemberWithPresence = FortlineSalesMember;
 
 export interface FortlineChannel {
@@ -80,6 +91,7 @@ export interface FortlineChannel {
   display_phone_number?: string | null;
   connection_status: 'connected' | 'disconnected';
   webhook_status: 'active' | 'degraded' | 'failing' | 'pending';
+  gateway_metadata?: Record<string, unknown> | null;
   last_successful_event_at?: string | null;
   last_delivery_error?: string | null;
   created_at: string;
@@ -148,6 +160,7 @@ export interface FortlineException {
     | 'unanswered_exceeded'
     | 'overdue_conversation'
     | 'channel_disconnected'
+    | 'channel_warning'
     | 'delivery_failed'
     | 'webhook_error';
   severity: 'info' | 'warning' | 'critical';

@@ -317,7 +317,7 @@ export async function loadSalesMembers(
 
   let channelsQuery = db
     .from('fortline_channels')
-    .select('sales_member_id, connection_status, pairing_state, display_phone_number, phone_number_id')
+    .select('sales_member_id, connection_status, pairing_state, display_phone_number, phone_number_id, gateway_metadata')
     .in('sales_member_id', memberIds);
   if (accountId) channelsQuery = channelsQuery.eq('account_id', accountId);
 
@@ -372,11 +372,17 @@ export async function loadSalesMembers(
       kpiConfig
     );
 
+    const gatewayMeta = (linkedChannel?.gateway_metadata as Record<string, unknown>) || null;
+
     hydrated.push({
       ...m,
       whatsapp_phone_number: linkedChannel?.display_phone_number || m.whatsapp_phone_number || m.phone_number,
       whatsapp_phone_number_id: linkedChannel?.phone_number_id || m.whatsapp_phone_number_id,
       channel_connection_status: (linkedChannel?.connection_status as 'connected' | 'disconnected' | null) ?? null,
+      channel_disconnect_classification: (gatewayMeta?.disconnect_classification as any) ?? null,
+      channel_last_disconnect_reason: (gatewayMeta?.last_disconnect_reason as string) ?? null,
+      channel_last_disconnect_code: (gatewayMeta?.last_disconnect_code as number) ?? null,
+      channel_last_disconnect_at: (gatewayMeta?.last_event_at as string) ?? null,
       presence_status: presence.status,
       presence_source: presence.source,
       assigned_contact_count: contactsMap[m.id] ?? 0,
@@ -461,24 +467,58 @@ export async function loadExceptions(
     // 1. Disconnected WhatsApp channels
     let chanQuery = db
       .from('fortline_channels')
-      .select('id, phone_number_id, display_phone_number, sales_member:fortline_sales_members(id, name)')
+      .select('id, phone_number_id, display_phone_number, gateway_metadata, sales_member:fortline_sales_members(id, name)')
       .eq('connection_status', 'disconnected');
     if (accountId) chanQuery = chanQuery.eq('account_id', accountId);
     const { data: discChannels } = await chanQuery;
 
     if (discChannels) {
       for (const ch of discChannels) {
-        exceptions.push({
-          id: `disc_${ch.id}`,
-          type: 'channel_disconnected',
-          severity: 'critical',
-          title: `WhatsApp Channel Disconnected: ${ch.display_phone_number || ch.phone_number_id}`,
-          description: `Channel assigned to ${(ch.sales_member as any)?.name || 'Unassigned'} has been disconnected from WhatsApp Gateway.`,
-          timestamp: new Date().toISOString(),
-          channel_id: ch.phone_number_id,
-          sales_member_id: (ch.sales_member as any)?.id,
-          sales_member_name: (ch.sales_member as any)?.name,
-        });
+        const meta = (ch.gateway_metadata as Record<string, unknown>) || {};
+        const classification = meta.disconnect_classification as string | undefined;
+        const repName = (ch.sales_member as any)?.name || 'Unassigned';
+        const phone = ch.display_phone_number || ch.phone_number_id;
+        const lastEventAt = (meta.last_event_at as string) || new Date().toISOString();
+
+        if (classification === 'confirmed_logout') {
+          exceptions.push({
+            id: `disc_${ch.id}`,
+            type: 'channel_disconnected',
+            severity: 'critical',
+            title: `WhatsApp Device Unlinked (Status 401): ${repName}`,
+            description: `Sales member ${repName} (${phone}) device was explicitly unlinked or logged out. Credentials revoked; QR code re-scan required.`,
+            timestamp: lastEventAt,
+            channel_id: ch.phone_number_id,
+            sales_member_id: (ch.sales_member as any)?.id,
+            sales_member_name: repName,
+          });
+        } else if (classification === 'temporary_timeout') {
+          exceptions.push({
+            id: `disc_${ch.id}`,
+            type: 'channel_warning',
+            severity: 'warning',
+            title: `Temporary Network Interruption (Status 408): ${repName}`,
+            description: `Temporary socket/network timeout on ${phone} (${repName}). Credentials remain active; gateway is attempting automatic reconnection (not a manual logout).`,
+            timestamp: lastEventAt,
+            channel_id: ch.phone_number_id,
+            sales_member_id: (ch.sales_member as any)?.id,
+            sales_member_name: repName,
+          });
+        } else {
+          exceptions.push({
+            id: `disc_${ch.id}`,
+            type: 'channel_disconnected',
+            severity: 'warning',
+            title: `WhatsApp Channel Disconnected: ${phone}`,
+            description:
+              (meta.disconnect_description as string) ||
+              `Channel assigned to ${repName} disconnected from WhatsApp Gateway.`,
+            timestamp: lastEventAt,
+            channel_id: ch.phone_number_id,
+            sales_member_id: (ch.sales_member as any)?.id,
+            sales_member_name: repName,
+          });
+        }
       }
     }
 
