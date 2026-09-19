@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FortlineKpiConfig, FortlineSalesMember } from '@/types/fortline';
+import { deleteEvolutionInstance } from '@/lib/evolution/evolution-api';
 
 export interface AuditActor {
   userId?: string;
@@ -8,9 +9,6 @@ export interface AuditActor {
   ipAddress?: string | null;
 }
 
-/**
- * Log CEO operations and mutations to fortline_audit_log
- */
 export async function logFortlineAuditEvent(
   db: SupabaseClient,
   event: {
@@ -39,9 +37,6 @@ export async function logFortlineAuditEvent(
   }
 }
 
-/**
- * Update Sales Member record
- */
 export async function updateSalesMember(
   db: SupabaseClient,
   id: string,
@@ -61,9 +56,7 @@ export async function updateSalesMember(
     if (accountId) query = query.eq('account_id', accountId);
 
     const { data, error } = await query.select().single();
-    if (error) {
-      return { ok: false, error: error.message };
-    }
+    if (error) return { ok: false, error: error.message };
 
     await logFortlineAuditEvent(db, {
       accountId,
@@ -80,9 +73,6 @@ export async function updateSalesMember(
   }
 }
 
-/**
- * Delete Sales Member record
- */
 export async function deleteSalesMember(
   db: SupabaseClient,
   id: string,
@@ -90,18 +80,161 @@ export async function deleteSalesMember(
   accountId?: string | null
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    // Also remove any linked channels
-    let chQuery = db.from('fortline_channels').delete().eq('sales_member_id', id);
-    if (accountId) chQuery = chQuery.eq('account_id', accountId);
-    await chQuery;
+    let memberQuery = db
+      .from('fortline_sales_members')
+      .select('id, name, phone_number')
+      .eq('id', id);
 
-    let query = db.from('fortline_sales_members').delete().eq('id', id);
-    if (accountId) query = query.eq('account_id', accountId);
+    if (accountId) memberQuery = memberQuery.eq('account_id', accountId);
 
-    const { error } = await query;
-    if (error) {
-      return { ok: false, error: error.message };
+    const { data: member, error: memberError } = await memberQuery.maybeSingle();
+
+    if (memberError) return { ok: false, error: memberError.message };
+    if (!member) return { ok: false, error: 'Sales member not found' };
+
+    let channelQuery = db
+      .from('fortline_channels')
+      .select('id, gateway_instance_id, phone_number_id')
+      .eq('sales_member_id', id);
+
+    if (accountId) channelQuery = channelQuery.eq('account_id', accountId);
+
+    const { data: channels, error: channelFetchError } = await channelQuery;
+    if (channelFetchError) return { ok: false, error: channelFetchError.message };
+
+    const channelRows = channels || [];
+    const channelIds = channelRows
+      .map((channel) => channel.id)
+      .filter((value): value is string => typeof value === 'string' && !!value);
+
+    const deletedEvolutionInstances: string[] = [];
+
+    for (const channel of channelRows) {
+      const instanceName =
+        typeof channel.gateway_instance_id === 'string'
+          ? channel.gateway_instance_id.trim()
+          : '';
+
+      if (!instanceName) continue;
+
+      const evoDelete = await deleteEvolutionInstance(instanceName);
+
+      if (!evoDelete.success && evoDelete.statusCode !== 404) {
+        return {
+          ok: false,
+          error:
+            evoDelete.error ||
+            `Failed to delete Evolution instance ${instanceName}`,
+        };
+      }
+
+      deletedEvolutionInstances.push(instanceName);
     }
+
+    let contactDetach = db
+      .from('contacts')
+      .update({
+        assigned_sales_member_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('assigned_sales_member_id', id);
+
+    if (accountId) contactDetach = contactDetach.eq('account_id', accountId);
+
+    const { error: contactDetachError } = await contactDetach;
+    if (contactDetachError) return { ok: false, error: contactDetachError.message };
+
+    let conversationMemberDetach = db
+      .from('conversations')
+      .update({
+        assigned_sales_member_id: null,
+        sales_rep_id: null,
+        whatsapp_channel_id: null,
+      })
+      .eq('assigned_sales_member_id', id);
+
+    if (accountId) {
+      conversationMemberDetach =
+        conversationMemberDetach.eq('account_id', accountId);
+    }
+
+    const { error: conversationMemberDetachError } =
+      await conversationMemberDetach;
+
+    if (conversationMemberDetachError) {
+      return { ok: false, error: conversationMemberDetachError.message };
+    }
+
+    if (channelIds.length > 0) {
+      let conversationChannelDetach = db
+        .from('conversations')
+        .update({
+          whatsapp_channel_id: null,
+          assigned_sales_member_id: null,
+          sales_rep_id: null,
+        })
+        .in('whatsapp_channel_id', channelIds);
+
+      if (accountId) {
+        conversationChannelDetach =
+          conversationChannelDetach.eq('account_id', accountId);
+      }
+
+      const { error: conversationChannelDetachError } =
+        await conversationChannelDetach;
+
+      if (conversationChannelDetachError) {
+        return { ok: false, error: conversationChannelDetachError.message };
+      }
+    }
+
+    const { error: messageMemberDetachError } = await db
+      .from('messages')
+      .update({
+        sales_member_id: null,
+        sales_rep_id: null,
+        whatsapp_channel_id: null,
+      })
+      .eq('sales_member_id', id);
+
+    if (messageMemberDetachError) {
+      return { ok: false, error: messageMemberDetachError.message };
+    }
+
+    if (channelIds.length > 0) {
+      const { error: messageChannelDetachError } = await db
+        .from('messages')
+        .update({
+          whatsapp_channel_id: null,
+          sales_member_id: null,
+          sales_rep_id: null,
+        })
+        .in('whatsapp_channel_id', channelIds);
+
+      if (messageChannelDetachError) {
+        return { ok: false, error: messageChannelDetachError.message };
+      }
+    }
+
+    let chDelete = db
+      .from('fortline_channels')
+      .delete()
+      .eq('sales_member_id', id);
+
+    if (accountId) chDelete = chDelete.eq('account_id', accountId);
+
+    const { error: channelDeleteError } = await chDelete;
+    if (channelDeleteError) return { ok: false, error: channelDeleteError.message };
+
+    let memberDelete = db
+      .from('fortline_sales_members')
+      .delete()
+      .eq('id', id);
+
+    if (accountId) memberDelete = memberDelete.eq('account_id', accountId);
+
+    const { error: memberDeleteError } = await memberDelete;
+    if (memberDeleteError) return { ok: false, error: memberDeleteError.message };
 
     await logFortlineAuditEvent(db, {
       accountId,
@@ -109,7 +242,13 @@ export async function deleteSalesMember(
       action: 'delete_sales_member',
       entityType: 'fortline_sales_member',
       entityId: id,
-      details: {},
+      details: {
+        name: member.name,
+        phone_number: member.phone_number,
+        deleted_channel_ids: channelIds,
+        deleted_evolution_instances: deletedEvolutionInstances,
+        history_preserved_as_unassigned: true,
+      },
     });
 
     return { ok: true };
@@ -118,9 +257,6 @@ export async function deleteSalesMember(
   }
 }
 
-/**
- * Bulk replace all sales members with real staff list
- */
 export async function bulkReplaceSalesMembers(
   db: SupabaseClient,
   accountId: string,
@@ -136,26 +272,44 @@ export async function bulkReplaceSalesMembers(
 ): Promise<{ ok: boolean; count?: number; error?: string }> {
   try {
     if (clearExisting) {
-      // First clean channels and sales members for this account
-      await db.from('fortline_channels').delete().eq('account_id', accountId);
-      const { error: delErr } = await db.from('fortline_sales_members').delete().eq('account_id', accountId);
-      if (delErr) {
-        return { ok: false, error: delErr.message };
+      const { data: existingMembers, error: existingError } = await db
+        .from('fortline_sales_members')
+        .select('id')
+        .eq('account_id', accountId);
+
+      if (existingError) return { ok: false, error: existingError.message };
+
+      for (const existing of existingMembers || []) {
+        const deleteResult = await deleteSalesMember(
+          db,
+          existing.id,
+          actor,
+          accountId
+        );
+
+        if (!deleteResult.ok) {
+          return {
+            ok: false,
+            error:
+              deleteResult.error ||
+              `Failed to safely remove existing sales member ${existing.id}`,
+          };
+        }
       }
     }
 
     let count = 0;
-    for (let i = 0; i < members.length; i++) {
-      const item = members[i];
+
+    for (const item of members) {
       const phoneClean = (item.phone_number || '').trim();
       const nameClean = (item.name || '').trim();
       if (!nameClean || !phoneClean) continue;
 
       const divClean = (item.division || 'General Sales').trim();
-      const desigClean = (item.designation || 'Sales Representative').trim();
-      const phoneId = `channel_${phoneClean.replace(/[^0-9]/g, '') || (i + 1)}`;
+      const desigClean =
+        (item.designation || 'Sales Representative').trim();
 
-      const { data: memberData, error: insErr } = await db
+      const { error: insErr } = await db
         .from('fortline_sales_members')
         .insert({
           account_id: accountId,
@@ -163,7 +317,7 @@ export async function bulkReplaceSalesMembers(
           division: divClean,
           designation: desigClean,
           phone_number: phoneClean,
-          channel_id: phoneId,
+          channel_id: null,
           is_active: item.is_active ?? true,
           presence_status: 'unknown',
           presence_source: 'none',
@@ -171,24 +325,12 @@ export async function bulkReplaceSalesMembers(
             first_response_target_min: 15,
             followup_target_hours: 24,
           },
-        })
-        .select('id')
-        .single();
+        });
 
-      if (insErr || !memberData) {
+      if (insErr) {
         console.error('[bulkReplaceSalesMembers] insert error:', insErr);
         continue;
       }
-
-      await db.from('fortline_channels').insert({
-        account_id: accountId,
-        sales_member_id: memberData.id,
-        phone_number_id: phoneId,
-        display_phone_number: phoneClean,
-        channel_name: `${nameClean} (${phoneClean})`,
-        connection_status: 'disconnected',
-        webhook_status: 'pending',
-      });
 
       count++;
     }
@@ -199,7 +341,11 @@ export async function bulkReplaceSalesMembers(
       action: 'bulk_replace_sales_members',
       entityType: 'fortline_sales_member',
       entityId: accountId,
-      details: { count, clearExisting },
+      details: {
+        count,
+        clearExisting,
+        channels_auto_provision_on_link: true,
+      },
     });
 
     return { ok: true, count };
@@ -208,9 +354,6 @@ export async function bulkReplaceSalesMembers(
   }
 }
 
-/**
- * Update Fortline KPI & SLA configuration
- */
 export async function updateKpiConfig(
   db: SupabaseClient,
   updates: Partial<FortlineKpiConfig>,
@@ -229,9 +372,7 @@ export async function updateKpiConfig(
       .select()
       .single();
 
-    if (error) {
-      return { ok: false, error: error.message };
-    }
+    if (error) return { ok: false, error: error.message };
 
     await logFortlineAuditEvent(db, {
       accountId,
@@ -248,9 +389,6 @@ export async function updateKpiConfig(
   }
 }
 
-/**
- * Update WhatsApp Channel mapping
- */
 export async function updateChannel(
   db: SupabaseClient,
   id: string,
