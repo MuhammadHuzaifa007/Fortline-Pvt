@@ -1040,8 +1040,8 @@ export function MessageThread({
     <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-2.5 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-border bg-card px-2 py-2 sm:px-4 sm:py-2.5 min-w-0">
+        <div className="flex min-w-0 items-center gap-1 sm:gap-3 shrink">
           {/* Back-to-list button — mobile only. Hidden on md+ where the
               conversation list is visible next to the thread. */}
           {onBack && (
@@ -1049,7 +1049,7 @@ export function MessageThread({
               type="button"
               onClick={onBack}
               aria-label={t("backToConversations")}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+              className="flex h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -1122,14 +1122,14 @@ export function MessageThread({
           </Badge>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Mobile & Tablet Info button — opens the contact details Sheet drawer */}
           <button
             type="button"
             onClick={() => setMobileContactOpen(true)}
             aria-label="View Contact Details"
             title="View Contact Details"
-            className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+            className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
           >
             <Info className="h-4 w-4" />
           </button>
@@ -1169,7 +1169,7 @@ export function MessageThread({
             aria-label="Sync Chat History from WhatsApp"
             title="Sync Chat History from WhatsApp (pull yesterday & older chats)"
             className={cn(
-              "inline-flex h-7 items-center gap-1 px-2 rounded-md text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60 border border-border/50",
+              "inline-flex h-7 items-center gap-1 px-1.5 sm:px-2 rounded-md text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60 border border-border/50",
               isSyncingHistory && "text-primary"
             )}
           >
@@ -1217,10 +1217,11 @@ export function MessageThread({
           {/* Status dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger className={cn(
-                  "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
+                  "inline-flex items-center justify-center h-7 gap-1 px-1.5 sm:px-2 text-xs rounded-md hover:bg-muted",
                   currentStatus?.color ?? "text-muted-foreground"
                 )}>
-                {currentStatus ? t(`status${currentStatus.label}`) : t("status")}
+                <span className="hidden xs:inline">{currentStatus ? t(`status${currentStatus.label}`) : t("status")}</span>
+                <span className="xs:hidden font-medium text-[11px]">{currentStatus ? t(`status${currentStatus.label}`).slice(0, 3) : t("status").slice(0, 3)}</span>
                 <ChevronDown className="h-3 w-3" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -1243,7 +1244,7 @@ export function MessageThread({
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
+                "inline-flex items-center justify-center h-7 gap-1 px-1.5 sm:px-2 text-xs rounded-md hover:bg-muted",
                 assignedAgentId ? "text-primary" : "text-muted-foreground"
               )}
             >
@@ -1307,7 +1308,7 @@ export function MessageThread({
       </div>
 
       {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-3 sm:px-4 sm:py-4">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />

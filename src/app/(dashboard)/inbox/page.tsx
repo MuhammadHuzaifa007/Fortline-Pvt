@@ -720,20 +720,20 @@ function InboxPageInner() {
   return (
     <div className="-m-4 flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col overflow-hidden sm:-m-6 2xl:-m-8">
       {/* Top Executive Oversight Bar */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-4">
-        <div className="flex items-center gap-2">
-          <WhatsAppChatsIcon className="h-4 w-4 text-[#008069]" />
-          <span className="text-xs font-bold text-foreground">
-            Executive WhatsApp Oversight
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-2 sm:px-4 gap-1 sm:gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink">
+          <WhatsAppChatsIcon className="h-4 w-4 shrink-0 text-[#008069]" />
+          <span className="text-xs font-bold text-foreground truncate">
+            Executive<span className="hidden xs:inline"> WhatsApp</span><span className="hidden sm:inline"> Oversight</span>
           </span>
-          <span className="hidden sm:inline text-xs text-muted-foreground">
+          <span className="hidden md:inline text-xs text-muted-foreground shrink-0">
             (30 Sales Lines)
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <Users className="size-3.5 text-muted-foreground" />
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <Users className="size-3.5 shrink-0 text-muted-foreground" />
             <select
               value={selectedSalesMemberId || "all"}
               onChange={(e) => {
@@ -747,7 +747,7 @@ function InboxPageInner() {
                 }
                 router.replace(`/inbox?${params.toString()}`, { scroll: false });
               }}
-              className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer max-w-[320px]"
+              className="h-7 rounded-md border border-border bg-background px-1.5 sm:px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer max-w-[130px] xs:max-w-[160px] sm:max-w-[240px] md:max-w-[320px] truncate"
             >
               <option value="all">All 30 Sales Lines</option>
               <option value="unassigned">📥 Unassigned / Direct Inbound</option>
@@ -763,10 +763,11 @@ function InboxPageInner() {
               onClick={handleSyncRep}
               disabled={syncingRep}
               title="Sync recent WhatsApp chats from phone into CRM"
-              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              aria-label="Sync chats"
+              className="inline-flex items-center justify-center gap-1.5 h-7 px-2 sm:px-2.5 rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
             >
               <RefreshCw className={cn("size-3", syncingRep && "animate-spin")} />
-              <span>{syncingRep ? "Syncing..." : "Sync Chats"}</span>
+              <span className="hidden sm:inline">{syncingRep ? "Syncing..." : "Sync Chats"}</span>
             </button>
           )}
         </div>

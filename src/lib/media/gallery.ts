@@ -42,10 +42,12 @@ export function collectMediaGallery(messages: Message[]): MediaGalleryItem[] {
   const items: MediaGalleryItem[] = [];
   for (const message of messages) {
     const kind = galleryKind(message);
-    if (!kind || !message.media_url) continue;
+    if (!kind) continue;
+    const url = resolveDisplayMediaUrl(message);
+    if (!url) continue;
     items.push({
       messageId: message.id,
-      url: resolveDisplayMediaUrl(message) || message.media_url,
+      url,
       kind,
       caption: message.content_text || undefined,
       createdAt: message.created_at,

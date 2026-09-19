@@ -175,12 +175,9 @@ export function MediaLightbox({
               t={t}
             />
           ) : (
-            <video
-              // Plain URL, never a blob — the player should stream.
-              src={item.url}
-              controls
-              preload="metadata"
-              className={cn(MEDIA_MAX_HEIGHT, "max-w-full rounded-lg")}
+            <LightboxVideo
+              item={item}
+              t={t}
             />
           )}
 
@@ -273,6 +270,43 @@ function LightboxImage({
   );
 }
 
+function LightboxVideo({
+  item,
+  t,
+}: {
+  item: MediaGalleryItem;
+  t: Translator;
+}) {
+  const { src, status } = useMediaBlobUrl(item.url);
+
+  if (status === "error") {
+    return (
+      <div className="flex h-64 w-full min-w-64 flex-col items-center justify-center gap-2 rounded-lg bg-muted text-sm text-muted-foreground">
+        <ImageOff className="h-8 w-8" />
+        <span>{t("failed")}</span>
+      </div>
+    );
+  }
+
+  if (status !== "ready" || !src) {
+    return (
+      <div className="flex h-64 w-full min-w-64 items-center justify-center rounded-lg bg-muted">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <video
+      src={src}
+      controls
+      autoPlay
+      preload="metadata"
+      className={cn(MEDIA_MAX_HEIGHT, "max-w-full rounded-lg")}
+    />
+  );
+}
+
 function ToolbarButton({
   icon: Icon,
   label,
@@ -323,8 +357,8 @@ function NavButton({
       aria-label={label}
       title={label}
       className={cn(
-        "absolute top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border/60 bg-background/85 text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-background disabled:pointer-events-none disabled:opacity-0",
-        side === "left" ? "left-1" : "right-1",
+        "absolute top-1/2 flex h-10 w-10 sm:h-9 sm:w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border/60 bg-background/85 text-foreground shadow-md backdrop-blur-sm transition-colors hover:bg-background disabled:pointer-events-none disabled:opacity-0 touch-manipulation",
+        side === "left" ? "left-1 sm:left-2" : "right-1 sm:right-2",
       )}
     >
       <Icon className="h-5 w-5" />

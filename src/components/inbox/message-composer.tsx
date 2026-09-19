@@ -876,19 +876,21 @@ export function MessageComposer({
               <span className="w-0.5 h-2 bg-red-500 animate-pulse delay-200 rounded-full" />
             </div>
             {recordingLocked ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full shadow-sm">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 sm:px-2.5 py-0.5 rounded-full shadow-sm">
                 <Lock className="h-3 w-3" />
-                Hands-Free Locked
+                <span className="hidden sm:inline">Hands-Free Locked</span>
+                <span className="sm:hidden">Locked</span>
               </span>
             ) : (
               <button
                 type="button"
                 onClick={lockRecording}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3 py-1 rounded-full transition-all active:scale-95 animate-pulse cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-500 hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-2 sm:px-3 py-1 rounded-full transition-all active:scale-95 animate-pulse cursor-pointer shadow-sm"
                 title="Tap or swipe up to lock recording hands-free"
               >
                 <Lock className="h-3.5 w-3.5" />
-                <span>↑ Swipe up or Tap to Lock</span>
+                <span className="hidden sm:inline">↑ Swipe up or Tap to Lock</span>
+                <span className="sm:hidden">Lock</span>
               </button>
             )}
           </div>
@@ -1000,6 +1002,12 @@ export function MessageComposer({
                 <FileText className="mr-2 h-4 w-4" />
                 {t("document")}
               </DropdownMenuItem>
+              {!readOnly && (
+                <DropdownMenuItem onClick={() => setCameraOpen(true)} className="xs:hidden">
+                  <Camera className="mr-2 h-4 w-4" />
+                  {t("takePhoto")}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -1011,7 +1019,7 @@ export function MessageComposer({
               type="button"
               disabled={inputsDisabled || busy}
               title={inputsDisabled ? undefined : t("takePhoto")}
-              className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              className="hidden xs:inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => setCameraOpen(true)}
             >
               <Camera className="h-[22px] w-[22px]" />

@@ -32,7 +32,7 @@ import { resolveDisplayMediaUrl } from "@/lib/media/blob-cache";
 type Translator = ReturnType<typeof useTranslations>;
 
 /** Inline media size cap, shared so the four bubbles can't drift apart. */
-const MEDIA_BOX = "max-h-64 max-w-60";
+const MEDIA_BOX = "max-h-64 max-w-full sm:max-w-60";
 
 export function MediaUnavailable({
   label,
@@ -106,7 +106,7 @@ function MediaActionButton({
 
 function MediaPlaceholder({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-40 w-60 items-center justify-center rounded-lg bg-muted">
+    <div className="flex h-40 w-full max-w-60 items-center justify-center rounded-lg bg-muted">
       {children}
     </div>
   );
@@ -193,14 +193,37 @@ export function MediaVideoBubble({
 }) {
   const { downloading, download } = useMediaDownload(message, t);
 
-  const displayUrl = resolveDisplayMediaUrl(message) || message.media_url;
+  // Always route through the gateway proxy — raw WhatsApp CDN URLs
+  // (https://mmg.whatsapp.net/...) are encrypted and inaccessible to
+  // browsers. The proxy decrypts via Evolution API and supports Range
+  // requests for seeking.
+  const displayUrl = resolveDisplayMediaUrl(message);
+  const { src, status } = useMediaBlobUrl(displayUrl);
+
+  if (!displayUrl) {
+    return <MediaUnavailable label={t("video")} t={t} />;
+  }
+
+  if (status === "error") {
+    return (
+      <MediaPlaceholder>
+        <ImageOff className="h-8 w-8 text-muted-foreground" />
+      </MediaPlaceholder>
+    );
+  }
+
+  if (status !== "ready" || !src) {
+    return (
+      <MediaPlaceholder>
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </MediaPlaceholder>
+    );
+  }
 
   return (
     <div className="relative w-fit">
-      {/* Plain URL, not a blob: the element should stream rather than wait
-          for up to 16 MB to land. */}
       <video
-        src={displayUrl}
+        src={src}
         controls
         preload="metadata"
         className={cn(MEDIA_BOX, "rounded-lg")}
@@ -344,7 +367,7 @@ export function MediaAudioBubble({
 
   if (loadStatus === "loading") {
     return (
-      <div className="flex w-56 items-center gap-2 rounded-lg px-1 py-2">
+      <div className="flex w-full max-w-56 items-center gap-2 rounded-lg px-1 py-2">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         <span className="text-xs text-muted-foreground">Loading voice…</span>
       </div>
@@ -356,7 +379,7 @@ export function MediaAudioBubble({
   }
 
   return (
-    <div className="flex w-64 items-center gap-2 py-1">
+    <div className="flex w-full max-w-64 items-center gap-2 py-1">
       {/* Hidden audio element */}
       {blobUrl && (
         <audio
@@ -453,10 +476,14 @@ export function MediaDocumentBubble({
 }) {
   const { downloading, download } = useMediaDownload(message, t);
 
-  const displayUrl = resolveDisplayMediaUrl(message) || message.media_url;
+  const displayUrl = resolveDisplayMediaUrl(message);
+
+  if (!displayUrl) {
+    return <MediaUnavailable label={t("document")} t={t} />;
+  }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full max-w-64 items-center gap-2">
       <a
         href={displayUrl}
         target="_blank"

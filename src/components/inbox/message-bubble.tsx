@@ -86,7 +86,7 @@ function FormattedMessageText({
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className={cn(
-                "underline underline-offset-2 font-medium transition-opacity",
+                "underline underline-offset-2 font-medium transition-opacity break-all",
                 isAgent
                   ? "text-white underline decoration-white/60 hover:text-white/80"
                   : "text-[#00a884] dark:text-[#00a884] underline decoration-[#00a884]/60 hover:text-[#008069]"
