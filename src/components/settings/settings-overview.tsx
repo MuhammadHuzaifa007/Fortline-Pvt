@@ -40,7 +40,7 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
   const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Karim Rafique';
   const email = user?.email || profile?.email || 'ceo@fortline.net';
   const initial = (displayName.trim().charAt(0) || 'K').toUpperCase();
-  const roleDisplay = accountRole ? accountRole.charAt(0).toUpperCase() + accountRole.slice(1) : 'Owner';
+  const roleDisplay = accountRole === 'owner' || !accountRole ? 'CEO' : (accountRole.charAt(0).toUpperCase() + accountRole.slice(1));
 
   useEffect(() => {
     let cancelled = false;
@@ -121,9 +121,11 @@ export function SettingsOverview({ onSelect }: SettingsOverviewProps) {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-foreground">{displayName}</h2>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <Crown className="size-3" />
-                {roleDisplay}
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border border-amber-400/60 bg-gradient-to-r from-amber-500/20 via-yellow-500/25 to-amber-500/20 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]">
+                <Crown className="size-3.5 text-amber-300 fill-amber-400/40 drop-shadow-[0_0_4px_rgba(245,158,11,0.6)]" />
+                <span className="bg-gradient-to-r from-amber-200 via-yellow-200 to-amber-300 bg-clip-text text-transparent font-bold">
+                  {roleDisplay}
+                </span>
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">{email}</p>

@@ -33,9 +33,9 @@ const ROLE_CHIP: Record<
 > = {
   owner: {
     icon: Crown,
-    label: "CEO / Owner",
+    label: "CEO",
     className:
-      "border-amber-500/40 bg-amber-500/10 text-amber-300",
+      "border-amber-400/60 bg-gradient-to-r from-amber-500/20 via-yellow-500/25 to-amber-500/20 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] font-semibold",
   },
   admin: {
     icon: Shield,
@@ -326,15 +326,31 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             {(() => {
               const meta = (accountRole && ROLE_CHIP[accountRole]) || ROLE_CHIP.owner;
               const Icon = meta.icon;
+              const isOwner = meta === ROLE_CHIP.owner || accountRole === "owner";
               const chipClass = accountRole === "admin" && activeChannel === "email"
                 ? "border-[#2B60DE]/40 bg-[#2B60DE]/10 text-[#2B60DE]"
                 : meta.className;
               return (
                 <span
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide ${chipClass}`}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] tracking-wide transition-all",
+                    chipClass
+                  )}
                 >
-                  <Icon className="size-3" />
-                  {meta.label}
+                  <Icon
+                    className={cn(
+                      "size-3",
+                      isOwner && "text-amber-300 fill-amber-400/40 drop-shadow-[0_0_5px_rgba(245,158,11,0.7)]"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      isOwner &&
+                        "bg-gradient-to-r from-amber-200 via-yellow-200 to-amber-300 bg-clip-text text-transparent font-bold tracking-wider"
+                    )}
+                  >
+                    {meta.label}
+                  </span>
                 </span>
               );
             })()}
